@@ -8,12 +8,17 @@ import (
 	"syscall"
 	"time"
 
+	myctx "github.com/tuken/triton/context"
+	"github.com/tuken/triton/logger"
 	"github.com/tuken/triton/usb"
 )
 
 func main() {
 
-	watch := usb.NewWatch(context.Background())
+	log := logger.NewLogger()
+	ctx := context.WithValue(context.Background(), myctx.LoggerKey, log)
+
+	watch := usb.NewWatch(ctx)
 
 	port := watch.Find("BraveJIG Router")
 	if port != "" {
