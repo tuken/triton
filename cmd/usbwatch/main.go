@@ -105,6 +105,11 @@ func scan(ctx context.Context, match string) map[string]portInfo {
 	}
 
 	for _, p := range ports {
+
+		if !p.IsUSB {
+			continue // /dev/ttyS0 等のオンボードシリアルを除外
+		}
+
 		info := portInfo{
 			Name:         p.Name,
 			IsUSB:        p.IsUSB,
