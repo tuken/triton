@@ -17,7 +17,7 @@ import (
 func main() {
 
 	match := flag.String("match", "", "監視対象を絞り込む文字列（ポート名・VID:PID・シリアルのいずれかに含まれれば対象）")
-	interval := flag.Duration("interval", time.Second, "ポーリング間隔")
+	interval := flag.Duration("interval", time.Second*3, "ポーリング間隔")
 	flag.Parse()
 
 	log := logger.NewLogger()
@@ -36,11 +36,14 @@ func main() {
 
 // portInfo は検知に必要なポート情報を保持する。
 type portInfo struct {
-	Name   string
-	IsUSB  bool
-	VID    string
-	PID    string
-	Serial string
+	Name         string
+	IsUSB        bool
+	VID          string
+	PID          string
+	Serial       string
+	Config       string
+	Manufacturer string
+	Product      string
 }
 
 // watch は interval ごとにシリアルポート一覧を取得し、
@@ -54,8 +57,7 @@ func watch(ctx context.Context, match string, interval time.Duration) {
 
 	// 起動時点で既に挿さっているものを通知
 	for _, p := range prev {
-		log.Infow("検出(起動時に接続済み)",
-			"port", p.Name, "vid", p.VID, "pid", p.PID, "serial", p.Serial)
+		log.Infow("検出(起動時に接続済み)", "port", p.Name, "vid", p.VID, "pid", p.PID, "serial", p.Serial, "config", p.Config, "manufacturer", p.Manufacturer, "product", p.Product)
 	}
 
 	ticker := time.NewTicker(interval)
@@ -71,16 +73,14 @@ func watch(ctx context.Context, match string, interval time.Duration) {
 			// 追加されたもの
 			for key, p := range cur {
 				if _, ok := prev[key]; !ok {
-					log.Infow("USB挿入を検知",
-						"port", p.Name, "vid", p.VID, "pid", p.PID, "serial", p.Serial)
+					log.Infow("USB挿入を検知", "port", p.Name, "vid", p.VID, "pid", p.PID, "serial", p.Serial, "config", p.Config, "manufacturer", p.Manufacturer, "product", p.Product)
 				}
 			}
 
 			// 削除されたもの
 			for key, p := range prev {
 				if _, ok := cur[key]; !ok {
-					log.Infow("USB抜去を検知",
-						"port", p.Name, "vid", p.VID, "pid", p.PID, "serial", p.Serial)
+					log.Infow("USB抜去を検知", "port", p.Name, "vid", p.VID, "pid", p.PID, "serial", p.Serial, "config", p.Config, "manufacturer", p.Manufacturer, "product", p.Product)
 				}
 			}
 
@@ -106,11 +106,14 @@ func scan(ctx context.Context, match string) map[string]portInfo {
 
 	for _, p := range ports {
 		info := portInfo{
-			Name:   p.Name,
-			IsUSB:  p.IsUSB,
-			VID:    p.VID,
-			PID:    p.PID,
-			Serial: p.SerialNumber,
+			Name:         p.Name,
+			IsUSB:        p.IsUSB,
+			VID:          p.VID,
+			PID:          p.PID,
+			Serial:       p.SerialNumber,
+			Config:       p.Configuration,
+			Manufacturer: p.Manufacturer,
+			Product:      p.Product,
 		}
 
 		if !matches(info, match) {
@@ -126,18 +129,23 @@ func scan(ctx context.Context, match string) map[string]portInfo {
 // matches は match が空なら全件対象、そうでなければ
 // ポート名・VID:PID・シリアルのいずれかに含まれるかを判定する。
 func matches(p portInfo, match string) bool {
+
 	if match == "" {
 		return true
 	}
+
 	if strings.Contains(p.Name, match) {
 		return true
 	}
+
 	if strings.Contains(p.VID+":"+p.PID, match) {
 		return true
 	}
+
 	if p.Serial != "" && strings.Contains(p.Serial, match) {
 		return true
 	}
+
 	return false
 }
 
