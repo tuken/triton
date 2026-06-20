@@ -105,15 +105,15 @@ func (w *Watch) emit(kind EventKind, p *enumerator.PortDetails) {
 // watch intervalごとにシリアルポート一覧を取得し、Productがtargetに合致するポートの挿入・抜去を検知してログ出力する。
 func (w *Watch) watch(interval time.Duration, target string) {
 
-	log := myctx.MustLogger(w.ctx)
+	// log := myctx.MustLogger(w.ctx)
 
 	// 直前のスナップショット。キー: 一意キー / 値: ポート情報
 	prev := w.scan(target)
 
-	// 起動時点で既に挿さっているものを通知
-	for _, p := range prev {
-		log.Infow("検出(起動時に接続済み)", "port", p.Name, "vid", p.VID, "pid", p.PID, "serial", p.SerialNumber, "config", p.Configuration, "manufacturer", p.Manufacturer, "product", p.Product)
-	}
+	// // 起動時点で既に挿さっているものを通知
+	// for _, p := range prev {
+	// 	log.Infow("検出(起動時に接続済み)", "port", p.Name, "vid", p.VID, "pid", p.PID, "serial", p.SerialNumber, "config", p.Configuration, "manufacturer", p.Manufacturer, "product", p.Product)
+	// }
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -154,13 +154,12 @@ func (w *Watch) watch(interval time.Duration, target string) {
 // scan はシリアルポート一覧を取得し、match に合致するものを一意キーで返す。
 func (w *Watch) scan(target string) map[string]*enumerator.PortDetails {
 
-	log := myctx.MustLogger(w.ctx)
-
 	result := map[string]*enumerator.PortDetails{}
 
 	ports, err := enumerator.GetDetailedPortsList()
 	if err != nil {
 
+		log := myctx.MustLogger(w.ctx)
 		log.Warnw("enumerator.GetDetailedPortsListエラー", "error", err)
 		return result
 	}
