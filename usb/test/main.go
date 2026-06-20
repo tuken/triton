@@ -28,11 +28,7 @@ func main() {
 	watch.Start(time.Second*3, "BraveJIG Router")
 	defer watch.Stop()
 
-	// Ctrl-C / SIGTERM で停止できるようにする
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-	<-sigCh
-
+	// 受信goroutineを先に起動しておく（シグナル待ちより前に動かす）
 	go func() {
 
 		for ev := range watch.Events() {
@@ -49,5 +45,8 @@ func main() {
 		// Stop() で close されると、このループを抜ける
 	}()
 
-	time.Sleep(time.Second * 100)
+	// Ctrl-C / SIGTERM が来るまでここで待ち、来たら main を抜けて defer watch.Stop() が走る
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	<-sigCh
 }
