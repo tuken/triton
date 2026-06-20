@@ -18,6 +18,10 @@ func main() {
 	log := logger.NewLogger()
 	ctx := context.WithValue(context.Background(), myctx.LoggerKey, log)
 
+	// Ctrl-C / SIGTERM が来ると ctx がキャンセルされる
+	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	watch := usb.NewWatch(ctx)
 
 	port := watch.Find("BraveJIG Router")
@@ -45,8 +49,6 @@ func main() {
 		// Stop() で close されると、このループを抜ける
 	}()
 
-	// Ctrl-C / SIGTERM が来るまでここで待ち、来たら main を抜けて defer watch.Stop() が走る
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-	<-sigCh
+	// Ctrl-C / SIGTERM が来るまで待ち、来たら main を抜けて defer watch.Stop() が走る
+	<-ctx.Done()
 }
