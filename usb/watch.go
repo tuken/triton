@@ -97,7 +97,9 @@ func (w *Watch) Find(target string) string {
 func (w *Watch) emit(kind EventKind, p *enumerator.PortDetails) {
 
 	select {
+
 	case w.events <- Event{Kind: kind, PortName: p.Name}:
+
 	case <-w.ctx.Done():
 	}
 }
