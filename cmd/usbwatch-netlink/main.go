@@ -70,23 +70,31 @@ func watch(ctx context.Context, match string) error {
 		return err
 	}
 
-	// ctx キャンセル時に Recvfrom を抜けられるよう、別 goroutine でソケットを閉じる
-	go func() {
-		<-ctx.Done()
-		// shutdown で待機中の Recvfrom を解除する
-		_ = unix.Shutdown(fd, unix.SHUT_RDWR)
-	}()
+	// 受信タイムアウトを設定し、Recvfrom を定期的にタイムアウトさせる。
+	// これにより、イベント待機中でも ctx のキャンセルを検知して終了できる。
+	// （netlink ソケットでは Shutdown/Close が待機中の Recvfrom を確実に
+	//   解除できない環境があるため、ポーリング方式にしている）
+	tv := unix.Timeval{Sec: 1, Usec: 0}
+	if err := unix.SetsockoptTimeval(fd, unix.SOL_SOCKET, unix.SO_RCVTIMEO, &tv); err != nil {
+		return err
+	}
 
 	buf := make([]byte, 8192)
 
 	for {
+		// ループ先頭で ctx をチェックして即時終了に対応
+		if ctx.Err() != nil {
+			return nil
+		}
+
 		n, _, err := unix.Recvfrom(fd, buf, 0)
 		if err != nil {
-			// ctx 終了に伴うクローズなら正常終了扱い
+			// ctx 終了なら正常終了扱い
 			if ctx.Err() != nil {
 				return nil
 			}
-			if err == unix.EINTR {
+			// 受信タイムアウト/割り込みはループを継続して ctx を再チェック
+			if err == unix.EAGAIN || err == unix.EWOULDBLOCK || err == unix.EINTR {
 				continue
 			}
 			return err

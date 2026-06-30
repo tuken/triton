@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"sync"
 	"time"
 
 	myctx "github.com/tuken/triton/context"
@@ -16,37 +17,94 @@ const (
 )
 
 type Com struct {
-	portName  string
-	port      serial.Port
-	ctx       context.Context
-	queryChan chan query
-	done      chan struct{}
+	portName string
+	port     serial.Port
+	ctx      context.Context
+	queryCh  chan query
+	readMu   sync.Mutex
+	done     chan struct{}
+}
+
+// Event は1回の読み取り結果を表す。
+// Packet が非nilなら受信フレーム、Err が非nilなら読み取りエラー。
+// 無通信タイムアウトは Err == ErrReadTimeout（errors.Is で判定可）で通知される。
+type Event struct {
+	Packet Unmarshaler
+	Err    error
+}
+
+// Read は1フレームを非同期に読み取り、その結果を受け取るチャネルを返す。
+// 常時読み込みを行う代わりに、呼び出し側が読みたいタイミングで Read を呼ぶ。
+//
+// 返り値のチャネルはバッファ付き（cap 1）なので、呼び出し側が ctx などで
+// 受信を諦めても内部 goroutine はブロックせずに終了する。ポートへの同時
+// Read を防ぐため readMu で直列化しており、前回の読み取りが完了するまで
+// 次の読み取りは開始されない。
+//
+//	select {
+//	case ev := <-com.Read():
+//	    // ev.Err / ev.Packet を処理
+//	case <-ctx.Done():
+//	    // 今回の読み取りを諦める（次の Read で再開）
+//	}
+func (c *Com) Read() <-chan Event {
+
+	ch := make(chan Event, 1)
+
+	go func() {
+		c.readMu.Lock()
+		defer c.readMu.Unlock()
+
+		pkt, err := readFrame(&portReader{p: c.port})
+		ch <- Event{Packet: pkt, Err: err}
+	}()
+
+	return ch
 }
 
 func (c *Com) loop() {
 
 	defer close(c.done)
 
-	for req := range c.queryChan {
+	for req := range c.queryCh {
 
 		if err := writeAll(c.port, req.packet.Marshal()); err != nil {
-			req.replyChan <- reply{err: err}
+			req.replyCh <- reply{err: err}
 			continue
 		}
 
 		resp := make([]byte, req.reply.packet.FixedSize())
 
 		if _, err := io.ReadFull(&portReader{p: c.port}, resp); err != nil {
-			req.replyChan <- reply{err: err}
+			req.replyCh <- reply{err: err}
 			continue
 		}
 
 		if err := req.reply.packet.Unmarshal(resp); err != nil {
-			req.replyChan <- reply{err: err}
+			req.replyCh <- reply{err: err}
 			continue
 		}
 
-		req.replyChan <- reply{packet: req.reply.packet}
+		req.replyCh <- reply{packet: req.reply.packet}
+	}
+}
+
+func (c *Com) writerLoop() {
+
+	for req := range c.queryCh {
+
+		// c.inflightMu.Lock()
+		// c.inflight = &req
+		// c.inflightMu.Unlock()
+
+		if err := writeAll(c.port, req.packet.Marshal()); err != nil {
+			req.replyCh <- reply{err: err}
+			// c.inflightMu.Lock()
+			// c.inflight = nil
+			// c.inflightMu.Unlock()
+			continue
+		}
+		// 応答待ちは Do 側が replyCh で待つ
 	}
 }
 
@@ -89,7 +147,7 @@ func (c *Com) Connect(ctx context.Context, portName string, mode *serial.Mode) e
 	c.portName = portName
 	c.port = port
 	c.ctx = ctx
-	c.queryChan = make(chan query)
+	c.queryCh = make(chan query)
 	c.done = make(chan struct{})
 
 	go c.loop()
@@ -101,7 +159,7 @@ func (c *Com) Disconnect() error {
 
 	log := myctx.MustLogger(c.ctx)
 
-	close(c.queryChan)
+	close(c.queryCh)
 	<-c.done
 
 	if c.port != nil {
@@ -160,9 +218,9 @@ func writeAll(p serial.Port, b []byte) error {
 }
 
 type query struct {
-	packet    Marshaler
-	reply     reply
-	replyChan chan reply
+	packet  Marshaler
+	reply   reply
+	replyCh chan reply
 }
 
 type reply struct {

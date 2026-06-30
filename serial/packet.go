@@ -7,7 +7,6 @@ import (
 
 const (
 	ProtocolVersion = 0x01
-	TypeErrorNotify = 0xFF
 	TypeInfoRequest = 0x01
 )
 
@@ -107,37 +106,9 @@ type Marshaler interface {
 type Unmarshaler interface {
 	Unmarshal([]byte) error
 	FixedSize() int
-	VariableSize() int
-}
-
-// ErrorNotify エラー通知パケット（7バイト固定）
-type ErrorNotify struct {
-	ProtocolVersion byte        // Index 0: 0x01
-	Type            byte        // Index 1: 0xFF
-	UnixTime        uint32      // Index 2-5: Little Endian
-	Reason          ErrorReason // Index 6
-}
-
-func (p *ErrorNotify) Unmarshal(buf []byte) error {
-
-	if len(buf) < 7 {
-		return fmt.Errorf("too short: %d bytes", len(buf))
-	}
-
-	p.ProtocolVersion = buf[0]
-	p.Type = buf[1]
-	p.UnixTime = binary.LittleEndian.Uint32(buf[2:6])
-	p.Reason = ErrorReason(buf[6])
-
-	return nil
-}
-
-func (p *ErrorNotify) FixedSize() int {
-	return 7
-}
-
-func (p *ErrorNotify) VariableSize() int {
-	return 0
+	// VariableSize は固定部のバイト列 fixed から可変長部分のサイズを返す。
+	// 構造体の内部状態に依存しないため、Unmarshal の前でも呼び出せる。
+	VariableSize(fixed []byte) int
 }
 
 // UplinkNotify アップリンク通知パケット（可変長、DataLengthで指定される）
@@ -175,9 +146,14 @@ func (p *UplinkNotify) FixedSize() int {
 	return 21
 }
 
-func (p *UplinkNotify) VariableSize() int {
+func (p *UplinkNotify) VariableSize(fixed []byte) int {
 
-	return int(p.DataLength)
+	// DataLength は固定部 Index 2-3（Little Endian）にある
+	if len(fixed) < 4 {
+		return 0
+	}
+
+	return int(binary.LittleEndian.Uint16(fixed[2:4]))
 }
 
 // DownlinkResponse ダウンリンク応答パケット（20バイト固定）
@@ -215,7 +191,7 @@ func (p *DownlinkResponse) FixedSize() int {
 	return 20
 }
 
-func (p *DownlinkResponse) VariableSize() int {
+func (p *DownlinkResponse) VariableSize(fixed []byte) int {
 
 	return 0
 }
@@ -248,9 +224,14 @@ func (p *InfoResponse) FixedSize() int {
 	return 15
 }
 
-func (p *InfoResponse) VariableSize() int {
+func (p *InfoResponse) VariableSize(fixed []byte) int {
 
-	switch p.Command {
+	// Command は固定部 Index 6 にある
+	if len(fixed) < 7 {
+		return 0
+	}
+
+	switch InfoCommand(fixed[6]) {
 
 	case CommandStop, CommandStart, CommandSetLongRangeMode, CommandSetLegacyMode, CommandRemoveAllDeviceList:
 		return 1
@@ -263,7 +244,7 @@ func (p *InfoResponse) VariableSize() int {
 
 	default:
 
-		b := byte(p.Command)
+		b := fixed[6]
 
 		if b >= byte(CommandGetDeviceListBase) && b < byte(CommandGetDeviceListBase)+byte(CommandGetDeviceListMax) {
 			return 9
@@ -275,6 +256,66 @@ func (p *InfoResponse) VariableSize() int {
 
 		return 0
 	}
+}
+
+// DFUResponse DFUレスポンスパケット（固定長、7バイト）
+type DFUResponse struct {
+	ProtocolVersion byte   // Index 0: 0x01
+	Type            byte   // Index 1: 0x03
+	UnixTime        uint32 // Index 2-5: Little Endian
+	Result          byte   // Index 6
+}
+
+func (p *DFUResponse) Unmarshal(buf []byte) error {
+
+	if len(buf) < 7 {
+		return fmt.Errorf("too short: %d bytes", len(buf))
+	}
+
+	p.ProtocolVersion = buf[0]
+	p.Type = buf[1]
+	p.UnixTime = binary.LittleEndian.Uint32(buf[2:6])
+	p.Result = buf[6]
+
+	return nil
+}
+
+func (p *DFUResponse) FixedSize() int {
+	return 7
+}
+
+func (p *DFUResponse) VariableSize(fixed []byte) int {
+	return 0
+}
+
+// ErrorNotify エラー通知パケット（7バイト固定）
+type ErrorNotify struct {
+	ProtocolVersion byte        // Index 0: 0x01
+	Type            byte        // Index 1: 0xFF
+	UnixTime        uint32      // Index 2-5: Little Endian
+	Reason          ErrorReason // Index 6
+}
+
+func (p *ErrorNotify) Unmarshal(buf []byte) error {
+
+	if len(buf) < 7 {
+		return fmt.Errorf("too short: %d bytes", len(buf))
+	}
+
+	p.ProtocolVersion = buf[0]
+	p.Type = buf[1]
+	p.UnixTime = binary.LittleEndian.Uint32(buf[2:6])
+	p.Reason = ErrorReason(buf[6])
+
+	return nil
+}
+
+func (p *ErrorNotify) FixedSize() int {
+	return 7
+}
+
+func (p *ErrorNotify) VariableSize(fixed []byte) int {
+	return 0
 }
 
 // InfoRequest Infoリクエストパケット（11バイト固定）
