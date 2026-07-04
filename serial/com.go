@@ -32,12 +32,15 @@ type Com struct {
 	handlers map[byte]Handler
 
 	writeMu sync.Mutex
+
+	ctx context.Context
 }
 
 // NewCom は空の Com を生成する。
-func NewCom() *Com {
+func NewCom(ctx context.Context) *Com {
 	return &Com{
 		handlers: make(map[byte]Handler),
+		ctx:      ctx,
 	}
 }
 
@@ -54,6 +57,11 @@ func (c *Com) Handle(typ byte, h Handler) {
 	}
 
 	c.handlers[typ] = h
+}
+
+func (c *Com) Context() context.Context {
+
+	return c.ctx
 }
 
 // Connect は COM ポートを開く。
@@ -102,21 +110,21 @@ func (c *Com) Disconnect() error {
 //   - 回復不能な読み取り/パースエラー（そのエラーを返す）
 //
 // 無通信タイムアウト（ErrReadTimeout）は正常系として読み飛ばして継続する。
-func (c *Com) Run(ctx context.Context) error {
+func (c *Com) Run() error {
 
 	if c.port == nil {
 		return errors.New("router: not connected")
 	}
 
-	log := myctx.MustLogger(ctx)
+	log := myctx.MustLogger(c.ctx)
 	r := &portReader{p: c.port}
 
 	for {
 
 		// ctx キャンセルを毎ループ確認する（Read は最大 DefaultTimeout でリターンする）
 		select {
-		case <-ctx.Done():
-			return ctx.Err()
+		case <-c.ctx.Done():
+			return c.ctx.Err()
 		default:
 		}
 
