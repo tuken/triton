@@ -10,6 +10,11 @@ const (
 	TypeInfoRequest = 0x01
 )
 
+// Marshaler は送信フレーム（リクエスト）が実装する。
+type Marshaler interface {
+	Marshal() []byte
+}
+
 type ErrorReason byte
 
 const (
@@ -38,7 +43,7 @@ const (
 	CommandRemoveDeviceListBase InfoCommand = 0x6B
 	CommandRemoveDeviceListMax  int         = 99
 	CommandGetAllDeviceList     InfoCommand = 0xCF
-	CommandKeepAlive            InfoCommand = 0xFF
+	CommandKeepAlive            InfoCommand = 0xD0
 )
 
 // CommandGetDeviceList index(0..99) から CommandGetDeviceListN を生成する
@@ -99,18 +104,6 @@ const (
 	ResultBusyModule         DownlinkResult = 0x09
 )
 
-type Marshaler interface {
-	Marshal() []byte
-}
-
-type Unmarshaler interface {
-	Unmarshal([]byte) error
-	FixedSize() int
-	// VariableSize は固定部のバイト列 fixed から可変長部分のサイズを返す。
-	// 構造体の内部状態に依存しないため、Unmarshal の前でも呼び出せる。
-	VariableSize(fixed []byte) int
-}
-
 // UplinkNotify アップリンク通知パケット（可変長、DataLengthで指定される）
 type UplinkNotify struct {
 	ProtocolVersion byte   // Index 0: 0x01
@@ -118,9 +111,10 @@ type UplinkNotify struct {
 	DataLength      uint16 // Index 2-3: データ長（0..65535）
 	UnixTime        uint32 // Index 4-7: Little Endian
 	DeviceID        uint64 // Index 8-15: Little Endian
-	SendorID        uint16 // Index 16-17: Little Endian
+	SensorID        uint16 // Index 16-17: Little Endian
 	Rssi            byte   // Index 18: RSSI値（-128..127）
 	SequenceNo      uint16 // Index 19-20: Little Endian
+	Data            []byte // Index 21-: 可変長データ（DataLength バイト）
 }
 
 func (p *UplinkNotify) Unmarshal(buf []byte) error {
@@ -134,9 +128,13 @@ func (p *UplinkNotify) Unmarshal(buf []byte) error {
 	p.DataLength = binary.LittleEndian.Uint16(buf[2:4])
 	p.UnixTime = binary.LittleEndian.Uint32(buf[4:8])
 	p.DeviceID = binary.LittleEndian.Uint64(buf[8:16])
-	p.SendorID = binary.LittleEndian.Uint16(buf[16:18])
+	p.SensorID = binary.LittleEndian.Uint16(buf[16:18])
 	p.Rssi = buf[18]
 	p.SequenceNo = binary.LittleEndian.Uint16(buf[19:21])
+
+	if len(buf) >= 21+int(p.DataLength) {
+		p.Data = append([]byte(nil), buf[21:21+int(p.DataLength)]...)
+	}
 
 	return nil
 }
@@ -159,13 +157,13 @@ func (p *UplinkNotify) VariableSize(fixed []byte) int {
 // DownlinkResponse ダウンリンク応答パケット（20バイト固定）
 type DownlinkResponse struct {
 	ProtocolVersion byte           // Index 0: 0x01
-	Type            byte           // Index 1: 0x00
+	Type            byte           // Index 1: 0x01
 	UnixTime        uint32         // Index 2-5: Little Endian
 	DeviceID        uint64         // Index 6-13: Little Endian
-	SendorID        uint16         // Index 14-15: Little Endian
+	SensorID        uint16         // Index 14-15: Little Endian
 	SequenceNo      uint16         // Index 16-17: Little Endian
 	Command         InfoCommand    // Index 18: コマンドコード
-	Result          DownlinkResult // Index 19: 結果コード（0x00: 成功、0x01: 失敗）
+	Result          DownlinkResult // Index 19: 結果コード
 }
 
 func (p *DownlinkResponse) Unmarshal(buf []byte) error {
@@ -178,7 +176,7 @@ func (p *DownlinkResponse) Unmarshal(buf []byte) error {
 	p.Type = buf[1]
 	p.UnixTime = binary.LittleEndian.Uint32(buf[2:6])
 	p.DeviceID = binary.LittleEndian.Uint64(buf[6:14])
-	p.SendorID = binary.LittleEndian.Uint16(buf[14:16])
+	p.SensorID = binary.LittleEndian.Uint16(buf[14:16])
 	p.SequenceNo = binary.LittleEndian.Uint16(buf[16:18])
 	p.Command = InfoCommand(buf[18])
 	p.Result = DownlinkResult(buf[19])
@@ -203,6 +201,7 @@ type InfoResponse struct {
 	UnixTime        uint32      // Index 2-5: Little Endian
 	Command         InfoCommand // Index 6: コマンドコード
 	RouterDeviceID  uint64      // Index 7-14: Little Endian
+	Data            []byte      // Index 15-: 可変長データ（Commandで長さが決まる）
 }
 
 func (p *InfoResponse) Unmarshal(buf []byte) error {
@@ -216,6 +215,10 @@ func (p *InfoResponse) Unmarshal(buf []byte) error {
 	p.UnixTime = binary.LittleEndian.Uint32(buf[2:6])
 	p.Command = InfoCommand(buf[6])
 	p.RouterDeviceID = binary.LittleEndian.Uint64(buf[7:15])
+
+	if len(buf) > 15 {
+		p.Data = append([]byte(nil), buf[15:]...)
+	}
 
 	return nil
 }
@@ -258,7 +261,7 @@ func (p *InfoResponse) VariableSize(fixed []byte) int {
 	}
 }
 
-// DFUResponse DFUレスポンスパケット（固定長、7バイト）
+// DFUResponse DFUレスポンスパケット（7バイト固定）
 type DFUResponse struct {
 	ProtocolVersion byte   // Index 0: 0x01
 	Type            byte   // Index 1: 0x03
@@ -347,7 +350,7 @@ type DownlinkRequest struct {
 	DataLength      uint16      // Index 2-3: データ長（0..65535）
 	UnixTime        uint32      // Index 4-7: Little Endian
 	DeviceID        uint64      // Index 8-15: Little Endian
-	SendorID        uint16      // Index 16-17: Little Endian
+	SensorID        uint16      // Index 16-17: Little Endian
 	Command         InfoCommand // Index 18: コマンドコード
 	SequenceNo      uint16      // Index 19-20: Little Endian
 }
@@ -361,9 +364,9 @@ func (p *DownlinkRequest) Marshal() []byte {
 	binary.LittleEndian.PutUint16(buf[2:4], p.DataLength)
 	binary.LittleEndian.PutUint32(buf[4:8], p.UnixTime)
 	binary.LittleEndian.PutUint64(buf[8:16], p.DeviceID)
-	binary.LittleEndian.PutUint16(buf[16:18], p.SendorID)
-	binary.LittleEndian.PutUint16(buf[19:21], p.SequenceNo)
+	binary.LittleEndian.PutUint16(buf[16:18], p.SensorID)
 	buf[18] = byte(p.Command)
+	binary.LittleEndian.PutUint16(buf[19:21], p.SequenceNo)
 
 	return buf
 }
