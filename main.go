@@ -77,7 +77,7 @@ func handleUplinkNotify(c *serial.Com, f serial.Frame) {
 
 		type Thermo struct {
 			BatteryLevel byte    `json:"battery_level"`
-			Sampling     uint16  `json:"sampling"`
+			Sampling     byte    `json:"sampling"`
 			Time         uint32  `json:"time"`
 			SampleNum    uint16  `json:"sample_num"`
 			Temperature  float32 `json:"temperature"`
@@ -88,11 +88,11 @@ func handleUplinkNotify(c *serial.Com, f serial.Frame) {
 
 			th := Thermo{
 				BatteryLevel: notify.Data[0],
-				Sampling:     binary.LittleEndian.Uint16(notify.Data[1:3]),
-				Time:         binary.LittleEndian.Uint32(notify.Data[3:7]),
-				SampleNum:    binary.LittleEndian.Uint16(notify.Data[7:9]),
-				Temperature:  math.Float32frombits(binary.LittleEndian.Uint32(notify.Data[9:13])),
-				Humidity:     math.Float32frombits(binary.LittleEndian.Uint32(notify.Data[13:17])),
+				Sampling:     notify.Data[1],
+				Time:         binary.LittleEndian.Uint32(notify.Data[2:6]),
+				SampleNum:    binary.LittleEndian.Uint16(notify.Data[6:8]),
+				Temperature:  math.Float32frombits(binary.LittleEndian.Uint32(notify.Data[8:12])),
+				Humidity:     math.Float32frombits(binary.LittleEndian.Uint32(notify.Data[12:16])),
 			}
 
 			log.Infow("温湿度センサデータ", "温度", th.Temperature, "湿度", th.Humidity, "電池残量", th.BatteryLevel, "サンプリング間隔", th.Sampling, "サンプル数", th.SampleNum, "センサ時刻", time.Unix(int64(th.Time), 0).UTC())
