@@ -21,7 +21,7 @@ const (
 // Handler は受信フレームを処理する関数。登録した型のフレームが届くと呼ばれる。
 // dispatch は Run の読み取りループ内で同期的に呼ぶため、重い処理は自前の
 // goroutine に逃がすこと（さもないと後続フレームの読み取りが滞る）。
-type Handler func(Frame)
+type Handler func(*Com, Frame)
 
 // Com は go.bug.st/serial を使った USB シリアル通信のクライアント。
 type Com struct {
@@ -157,7 +157,7 @@ func (c *Com) dispatch(log *zap.SugaredLogger, typ byte, frame Frame) {
 		return
 	}
 
-	h(frame)
+	h(c, frame)
 }
 
 // Write は1つのリクエストフレームを送信する。送信は writeMu で直列化する。
