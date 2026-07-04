@@ -107,13 +107,19 @@ func handleErrorNotify(c *router.Com, f router.Frame) {
 
 	fmt.Println("ErrorNotify 受信", "code", errNotify.Reason)
 
-	ir := router.InfoRequest{
-		ProtocolVersion: 0x01,
-		Type:            0x01,
-		Command:         router.CommandKeepAlive,
-		LocalTime:       uint32(time.Now().Local().Unix()),
-		UnixTime:        uint32(time.Now().Unix()),
-	}
+	if errNotify.Reason == router.ReasonKeepAliveRequired {
 
-	c.Write(&ir)
+		fmt.Println("LocalTime:", time.Now().Local().Unix())
+		fmt.Println("UnixTime:", time.Now().Unix())
+
+		ir := router.InfoRequest{
+			ProtocolVersion: 0x01,
+			Type:            0x01,
+			Command:         router.CommandKeepAlive,
+			LocalTime:       uint32(time.Now().Local().Unix()),
+			UnixTime:        uint32(time.Now().Unix()),
+		}
+
+		c.Write(&ir)
+	}
 }
