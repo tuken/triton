@@ -43,7 +43,7 @@ const (
 	CommandRemoveDeviceListBase InfoCommand = 0x6B
 	CommandRemoveDeviceListMax  int         = 99
 	CommandGetAllDeviceList     InfoCommand = 0xCF
-	CommandKeepAlive            InfoCommand = 0xFF
+	CommandKeepAlive            InfoCommand = 0xD0
 )
 
 // CommandGetDeviceList index(0..99) から CommandGetDeviceListN を生成する
