@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	myctx "github.com/tuken/triton/context"
 	"github.com/tuken/triton/logger"
@@ -36,6 +37,10 @@ func main() {
 
 	com := router.NewCom()
 
+	com.Handle(router.TypeUplinkNotify, handleUplinkNotify)
+	com.Handle(router.TypeDownlinkResponse, handleDownlinkResponse)
+	com.Handle(router.TypeInfoResponse, handleInfoResponse)
+	com.Handle(router.TypeDFUResponse, handleDFUResponse)
 	com.Handle(router.TypeErrorNotify, handleErrorNotify)
 
 	// COMポートをオープン
@@ -54,6 +59,45 @@ func main() {
 	com.Run(ctx)
 }
 
+func handleUplinkNotify(c *router.Com, f router.Frame) {
+
+	notify, ok := f.(*router.UplinkNotify)
+	if !ok {
+		panic("invalid frame type")
+	}
+
+	fmt.Println("UplinkNotify 受信", "data", notify.Data)
+}
+
+func handleDownlinkResponse(c *router.Com, f router.Frame) {
+
+	resp, ok := f.(*router.DownlinkResponse)
+	if !ok {
+		panic("invalid frame type")
+	}
+
+	fmt.Println("DownlinkResponse 受信", "result", resp.Result)
+}
+
+func handleInfoResponse(c *router.Com, f router.Frame) {
+
+	resp, ok := f.(*router.InfoResponse)
+	if !ok {
+		panic("invalid frame type")
+	}
+
+	fmt.Println("InfoResponse 受信", "command", resp.Command)
+}
+
+func handleDFUResponse(c *router.Com, f router.Frame) {
+	resp, ok := f.(*router.DFUResponse)
+	if !ok {
+		panic("invalid frame type")
+	}
+
+	fmt.Println("DFUResponse 受信", "result", resp.Result)
+}
+
 func handleErrorNotify(c *router.Com, f router.Frame) {
 
 	errNotify, ok := f.(*router.ErrorNotify)
@@ -62,4 +106,14 @@ func handleErrorNotify(c *router.Com, f router.Frame) {
 	}
 
 	fmt.Println("ErrorNotify 受信", "code", errNotify.Reason)
+
+	ir := router.InfoRequest{
+		ProtocolVersion: 0x01,
+		Type:            0x01,
+		Command:         router.CommandKeepAlive,
+		LocalTime:       uint32(time.Now().Local().Unix()),
+		UnixTime:        uint32(time.Now().Unix()),
+	}
+
+	c.Write(&ir)
 }
