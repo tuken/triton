@@ -84,15 +84,15 @@ func handleUplinkNotify(c *serial.Com, f serial.Frame) {
 			Humidity     float32 `json:"humidity"`
 		}
 
-		if len(notify.Data) >= 16 {
+		if len(notify.Data) >= 17 {
 
 			th := Thermo{
 				BatteryLevel: notify.Data[0],
 				Sampling:     binary.LittleEndian.Uint16(notify.Data[1:3]),
 				Time:         binary.LittleEndian.Uint32(notify.Data[3:7]),
 				SampleNum:    binary.LittleEndian.Uint16(notify.Data[7:9]),
-				Temperature:  math.Float32frombits(binary.LittleEndian.Uint32(notify.Data[9:12])),
-				Humidity:     math.Float32frombits(binary.LittleEndian.Uint32(notify.Data[12:16])),
+				Temperature:  math.Float32frombits(binary.LittleEndian.Uint32(notify.Data[9:13])),
+				Humidity:     math.Float32frombits(binary.LittleEndian.Uint32(notify.Data[13:17])),
 			}
 
 			log.Infow("温湿度センサデータ", "温度", th.Temperature, "湿度", th.Humidity, "電池残量", th.BatteryLevel, "サンプリング間隔", th.Sampling, "サンプル数", th.SampleNum, "センサ時刻", time.Unix(int64(th.Time), 0).UTC())
