@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/binary"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -68,7 +70,33 @@ func handleUplinkNotify(c *serial.Com, f serial.Frame) {
 		return
 	}
 
-	log.Infow("UplinkNotify 受信", "data length", notify.DataLength, "unix time", time.Unix(int64(notify.UnixTime), 0).UTC(), "device id", notify.DeviceID, "sensor id", notify.SensorID, "rssi", notify.Rssi, "sequence no", notify.SequenceNo)
+	log.Infow("UplinkNotify 受信", "data length", notify.DataLength, "unix time", time.Unix(int64(notify.UnixTime), 0).UTC(), "device id", fmt.Sprintf("%016x", notify.DeviceID), "sensor id", fmt.Sprintf("%04x", notify.SensorID), "rssi", notify.Rssi, "sequence no", fmt.Sprintf("%04x", notify.SequenceNo))
+
+	if notify.SensorID == 0x0123 {
+
+		type Thermo struct {
+			BatteryLevel byte    `json:"battery_level"`
+			Sampling     uint16  `json:"sampling"`
+			Time         uint32  `json:"time"`
+			SampleNum    uint16  `json:"sample_num"`
+			Temperature  float32 `json:"temperature"`
+			Humidity     float32 `json:"humidity"`
+		}
+
+		if len(notify.Data) >= 16 {
+
+			th := Thermo{
+				BatteryLevel: notify.Data[0],
+				Sampling:     binary.LittleEndian.Uint16(notify.Data[1:3]),
+				Time:         binary.LittleEndian.Uint32(notify.Data[3:7]),
+				SampleNum:    binary.LittleEndian.Uint16(notify.Data[7:9]),
+				Temperature:  float32(int16(binary.LittleEndian.Uint16(notify.Data[9:11]))) / 10.0,
+				Humidity:     float32(binary.LittleEndian.Uint16(notify.Data[11:13])) / 10.0,
+			}
+
+			log.Infow("温湿度センサデータ", "温度", th.Temperature, "湿度", th.Humidity, "電池残量", th.BatteryLevel, "サンプリング間隔", th.Sampling, "サンプル数", th.SampleNum, "センサ時刻", time.Unix(int64(th.Time), 0).UTC())
+		}
+	}
 }
 
 func handleDownlinkResponse(c *serial.Com, f serial.Frame) {
