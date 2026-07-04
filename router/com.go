@@ -173,23 +173,6 @@ func (c *Com) Write(m Marshaler) error {
 	return writeAll(c.port, m.Marshal())
 }
 
-// SendKeepAlive は KeepAlive（InfoRequest, Command=0xD0）を送信する。
-func (c *Com) SendKeepAlive() error {
-
-	unixTime := uint32(time.Now().Unix())
-	localTime := unixTime + 9*3600 // JST
-
-	req := &InfoRequest{
-		ProtocolVersion: ProtocolVersion,
-		Type:            TypeInfoRequest,
-		Command:         0xD0,
-		LocalTime:       localTime,
-		UnixTime:        unixTime,
-	}
-
-	return c.Write(req)
-}
-
 func writeAll(p serial.Port, b []byte) error {
 
 	for len(b) > 0 {
