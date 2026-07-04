@@ -36,6 +36,8 @@ func main() {
 
 	com := router.NewCom()
 
+	com.Handle(router.TypeErrorNotify, handleErrorNotify)
+
 	// COMポートをオープン
 	if err := com.Connect(portName, &serial.Mode{
 		BaudRate: 115200,
@@ -50,4 +52,14 @@ func main() {
 	defer com.Disconnect()
 
 	com.Run(ctx)
+}
+
+func handleErrorNotify(c *router.Com, f router.Frame) {
+
+	errNotify, ok := f.(*router.ErrorNotify)
+	if !ok {
+		panic("invalid frame type")
+	}
+
+	fmt.Println("ErrorNotify 受信", "code", errNotify.Reason)
 }
