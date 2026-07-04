@@ -84,7 +84,7 @@ func handleUplinkNotify(c *serial.Com, f serial.Frame) {
 			Humidity     float32 `json:"humidity"`
 		}
 
-		if len(notify.Data) >= 17 {
+		if len(notify.Data) >= 16 {
 
 			th := Thermo{
 				BatteryLevel: notify.Data[0],
