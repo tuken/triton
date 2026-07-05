@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -26,39 +27,117 @@ func main() {
 	log := logger.NewLogger()
 	ctx = context.WithValue(ctx, myctx.LoggerKey, log)
 
-	watch := usb.NewWatch(ctx)
+	const target = "BraveJIG Router"
 
-	portName := watch.Find("BraveJIG Router")
-	if portName == "" {
-
-		log.Infow("USB未接続")
-		return
-	}
-
-	log.Infow("アプリケーション起動")
-
-	com := serial.NewCom(ctx)
-
-	com.Handle(serial.TypeUplinkNotify, handleUplinkNotify)
-	com.Handle(serial.TypeDownlinkResponse, handleDownlinkResponse)
-	com.Handle(serial.TypeInfoResponse, handleInfoResponse)
-	com.Handle(serial.TypeDFUResponse, handleDFUResponse)
-	com.Handle(serial.TypeErrorNotify, handleErrorNotify)
-
-	// COMポートをオープン
-	if err := com.Connect(portName, &goser.Mode{
+	mode := &goser.Mode{
 		BaudRate: 115200,
 		DataBits: 8,
 		Parity:   goser.NoParity,
 		StopBits: goser.OneStopBit,
-	}); err != nil {
-		log.Fatalw("USB接続エラー", "error", err)
-		return
 	}
 
-	defer com.Disconnect()
+	log.Infow("アプリケーション起動")
 
-	com.Run()
+	// USB のホットプラグ監視を開始（挿入・抜去イベントを受け取る）
+	watch := usb.NewWatch(ctx)
+	watch.Start(1*time.Second, target)
+	defer watch.Stop()
+
+	// 現在の接続。未接続なら com == nil。runDone は Run goroutine の終了通知。
+	var com *serial.Com
+	var runDone chan struct{}
+
+	// connect はポートを開き、Run を goroutine で開始する。
+	connect := func(portName string) {
+
+		if com != nil {
+			return // 既に接続済み
+		}
+
+		c := serial.NewCom(ctx)
+
+		c.Handle(serial.TypeUplinkNotify, handleUplinkNotify)
+		c.Handle(serial.TypeDownlinkResponse, handleDownlinkResponse)
+		c.Handle(serial.TypeInfoResponse, handleInfoResponse)
+		c.Handle(serial.TypeDFUResponse, handleDFUResponse)
+		c.Handle(serial.TypeErrorNotify, handleErrorNotify)
+
+		if err := c.Connect(portName, mode); err != nil {
+			log.Errorw("USB接続エラー", "port", portName, "error", err)
+			return
+		}
+
+		log.Infow("シリアル接続", "port", portName)
+
+		com = c
+		runDone = make(chan struct{})
+
+		// Run はブロックするので goroutine で回す。抜去/切断で終了する。
+		go func() {
+			defer close(runDone)
+
+			if err := c.Run(); err != nil && !errors.Is(err, context.Canceled) {
+				log.Errorw("Run 終了", "error", err)
+			}
+		}()
+	}
+
+	// disconnect はポートを閉じ、Run goroutine の終了を待つ。
+	disconnect := func() {
+
+		if com == nil {
+			return
+		}
+
+		if err := com.Disconnect(); err != nil {
+			log.Warnw("切断エラー", "error", err)
+		}
+
+		<-runDone // Run goroutine が抜けるのを待ってから片付ける
+
+		log.Infow("シリアル切断")
+
+		com = nil
+		runDone = nil
+	}
+
+	// 起動時に既に挿さっていれば即接続。無ければ挿入イベントを待つ。
+	if portName := watch.Find(target); portName != "" {
+		log.Infow("USB接続済み", "port", portName)
+		connect(portName)
+	} else {
+		log.Infow("USB未接続、挿入待機中")
+	}
+
+	// イベントループ：挿入で接続、抜去で切断。ctx キャンセルで終了。
+	for {
+
+		select {
+
+		case <-ctx.Done():
+			disconnect()
+			log.Infow("アプリケーション終了")
+			return
+
+		case ev, ok := <-watch.Events():
+
+			if !ok {
+				disconnect()
+				return
+			}
+
+			switch ev.Kind {
+
+			case usb.EventInserted:
+				log.Infow("USB挿入検知", "port", ev.PortName)
+				connect(ev.PortName)
+
+			case usb.EventRemoved:
+				log.Infow("USB抜去検知", "port", ev.PortName)
+				disconnect()
+			}
+		}
+	}
 }
 
 func handleUplinkNotify(c *serial.Com, f serial.Frame) {
