@@ -38,9 +38,10 @@ func main() {
 
 	log.Infow("アプリケーション起動")
 
-	// USB のホットプラグ監視を開始（挿入・抜去イベントを受け取る）
-	watch := usb.NewWatch(ctx)
-	watch.Start(1*time.Second, target)
+	// USB のホットプラグ監視を開始（挿入・抜去イベントを受け取る）。
+	// 起動時に既に挿さっているポートも EventInserted として届く。
+	watch := usb.NewWatch(ctx, target, 1*time.Second)
+	watch.Start()
 	defer watch.Stop()
 
 	// 現在の接続。未接続なら com == nil。runDone は Run goroutine の終了通知。
@@ -101,13 +102,8 @@ func main() {
 		runDone = nil
 	}
 
-	// 起動時に既に挿さっていれば即接続。無ければ挿入イベントを待つ。
-	if portName := watch.Find(target); portName != "" {
-		log.Infow("USB接続済み", "port", portName)
-		connect(portName)
-	} else {
-		log.Infow("USB未接続、挿入待機中")
-	}
+	// 既接続・新規挿入はどちらも EventInserted で届くので、ここでは待つだけ。
+	log.Infow("USB挿入待機中")
 
 	// イベントループ：挿入で接続、抜去で切断。ctx キャンセルで終了。
 	for {
