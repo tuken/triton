@@ -22,14 +22,8 @@ func main() {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	watch := usb.NewWatch(ctx)
-
-	port := watch.Find("BraveJIG Router")
-	if port != "" {
-		fmt.Println("既に接続されている:", port)
-	}
-
-	watch.Start(time.Second*3, "BraveJIG Router")
+	watch := usb.NewWatch(ctx, "BraveJIG Router", time.Second*3)
+	watch.Start()
 	defer watch.Stop()
 
 	// 受信goroutineを先に起動しておく（シグナル待ちより前に動かす）
