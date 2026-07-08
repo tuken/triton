@@ -15,26 +15,29 @@ const (
 	TypeErrorNotify      byte = 0xFF // エラー通知（固定長）
 )
 
-// Frame は受信1フレームの共通インターフェース。
+// Frame 受信1フレームの共通インターフェース。
 // フレームは先頭2バイト（[0]=ProtocolVersion, [1]=Type）が共通ヘッダで、
 // 種別ごとに固定長部＋（必要なら）可変長部を持つ。可変長サイズは固定部の
 // バイト列だけで決まるため、Unmarshal 前でも VariableSize を呼べる。
 type Frame interface {
-	// Unmarshal はフレーム全体（固定部＋可変部）をパースする。
+
+	// Unmarshal フレーム全体（固定部＋可変部）をパースする。
 	Unmarshal(buf []byte) error
-	// FixedSize は先に読み込むべき固定長部のサイズ（ヘッダ2バイトを含む）。
+
+	// FixedSize 先に読み込むべき固定長部のサイズ（ヘッダ2バイトを含む）。
 	FixedSize() int
-	// VariableSize は固定部のバイト列 fixed から可変長部のサイズを返す。
+
+	// VariableSize 固定部のバイト列 fixed から可変長部のサイズを返す。
 	VariableSize(fixed []byte) int
 }
 
-// ErrReadTimeout は SetReadTimeout で設定した時間内に1バイトも受信できなかった
+// ErrReadTimeout SetReadTimeout で設定した時間内に1バイトも受信できなかった
 // （フレーム境界での無通信）ことを表す。go.bug.st/serial はタイムアウト時に
 // (0, nil) を返すため、それをこの sentinel エラーに変換して呼び出し側へ伝える。
 // 外部からは errors.Is(err, router.ErrReadTimeout) で判定できる。
 var ErrReadTimeout = errors.New("router: read timeout")
 
-// newFrameByType はヘッダ2バイト目（Type）から、対応する空の Frame を生成する。
+// newFrameByType ヘッダ2バイト目（Type）から、対応する空の Frame を生成する。
 // ここがプロトコルの「種別 → どの構造体で受けるか」のディスパッチ表になる。
 func newFrameByType(typ byte) (Frame, error) {
 
@@ -60,7 +63,7 @@ func newFrameByType(typ byte) (Frame, error) {
 	}
 }
 
-// readFull は r から len(buf) バイトを読み込む。io.ReadFull と異なり、
+// readFull r から len(buf) バイトを読み込む。io.ReadFull と異なり、
 // go.bug.st/serial がタイムアウト時に返す (0, nil) を次のように扱う:
 //
 //   - boundary=true でまだ1バイトも読めていない場合: ErrReadTimeout を返す
@@ -78,10 +81,12 @@ func readFull(r io.Reader, buf []byte, boundary bool) error {
 		}
 
 		if nn == 0 {
+
 			// タイムアウト発生
 			if boundary && n == 0 {
 				return ErrReadTimeout
 			}
+
 			// フレーム途中なので継続して残りを待つ
 			continue
 		}
@@ -92,7 +97,7 @@ func readFull(r io.Reader, buf []byte, boundary bool) error {
 	return nil
 }
 
-// readFrame は r から1フレームを読み出し、種別(Type)と Unmarshal 済みの Frame を返す。
+// readFrame r から1フレームを読み出し、種別(Type)と Unmarshal 済みの Frame を返す。
 //
 //  1. ヘッダ2バイトを読む（フレーム境界なので無通信時は ErrReadTimeout）
 //  2. Type から受け取る構造体を決める
