@@ -10,7 +10,7 @@ import (
 	"go.bug.st/serial/enumerator"
 )
 
-// EventKind はUSBイベントの種別を表す。
+// EventKind USBイベントの種別を表す。
 type EventKind int
 
 const (
@@ -33,13 +33,13 @@ func (k EventKind) String() string {
 	}
 }
 
-// Event は検知したUSBイベントを表す。
+// Event 検知したUSBイベントを表す。
 type Event struct {
 	Kind     EventKind
 	PortName string
 }
 
-// Watch は target（製品名の部分一致）に合致するUSBシリアルポートの
+// Watch target（製品名の部分一致）に合致するUSBシリアルポートの
 // 挿入・抜去を、一定間隔のポーリングで監視する。
 //
 // 使い方:
@@ -62,7 +62,7 @@ type Watch struct {
 	wg       sync.WaitGroup
 }
 
-// NewWatch は target を監視する Watch を生成する。
+// NewWatch target を監視する Watch を生成する。
 // target はポートの Product 名に対する部分一致で判定する。
 func NewWatch(ctx context.Context, target string, interval time.Duration) *Watch {
 
@@ -79,14 +79,14 @@ func NewWatch(ctx context.Context, target string, interval time.Duration) *Watch
 	}
 }
 
-// Events は挿入・抜去イベントを受け取る受信専用チャネルを返す。
+// Events 挿入・抜去イベントを受け取る受信専用チャネルを返す。
 // Stop() 後にクローズされるので range で受信できる。
 func (w *Watch) Events() <-chan Event {
 
 	return w.events
 }
 
-// Start は監視を開始する。開始直後に一度走査し、既に挿さっているポートを
+// Start 監視を開始する。開始直後に一度走査し、既に挿さっているポートを
 // EventInserted として通知する。以降は interval ごとに差分を通知する。
 func (w *Watch) Start() {
 
@@ -101,7 +101,7 @@ func (w *Watch) Start() {
 	}()
 }
 
-// Stop は監視を停止し、goroutine の終了を待ってからイベントチャネルを閉じる。
+// Stop 監視を停止し、goroutine の終了を待ってからイベントチャネルを閉じる。
 func (w *Watch) Stop() {
 
 	w.cancel()
@@ -113,7 +113,7 @@ func (w *Watch) Stop() {
 	myctx.MustLogger(w.ctx).Infow("USB監視終了")
 }
 
-// loop は interval ごとにポートを走査し、前回との差分を挿抜イベントとして通知する。
+// loop interval ごとにポートを走査し、前回との差分を挿抜イベントとして通知する。
 func (w *Watch) loop() {
 
 	// known: 現在挿さっていると認識しているポート集合（一意キー → ポート名）。
@@ -139,7 +139,7 @@ func (w *Watch) loop() {
 	}
 }
 
-// poll は1回分の走査を行い、known を更新しながら差分をイベント通知する。
+// poll 1回分の走査を行い、known を更新しながら差分をイベント通知する。
 func (w *Watch) poll(known map[string]string) {
 
 	current := w.scan()
@@ -163,7 +163,7 @@ func (w *Watch) poll(known map[string]string) {
 	}
 }
 
-// scan は target を含むUSBシリアルポートを「一意キー → ポート名」で返す。
+// scan target を含むUSBシリアルポートを「一意キー → ポート名」で返す。
 func (w *Watch) scan() map[string]string {
 
 	result := map[string]string{}
@@ -187,7 +187,7 @@ func (w *Watch) scan() map[string]string {
 	return result
 }
 
-// emit はイベントを通知する。受信側が詰まっても、ctx キャンセルで抜けられる。
+// emit イベントを通知する。受信側が詰まっても、ctx キャンセルで抜けられる。
 func (w *Watch) emit(kind EventKind, portName string) {
 
 	select {

@@ -10,7 +10,7 @@ const (
 	TypeInfoRequest = 0x01
 )
 
-// Marshaler は送信フレーム（リクエスト）が実装する。
+// Marshaler 送信フレーム（リクエスト）が実装する。
 type Marshaler interface {
 	Marshal() []byte
 }

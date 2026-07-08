@@ -36,7 +36,7 @@ type Com struct {
 	ctx context.Context
 }
 
-// NewCom は空の Com を生成する。
+// NewCom 空の Com を生成する。
 func NewCom(ctx context.Context) *Com {
 
 	return &Com{
@@ -203,7 +203,7 @@ func writeAll(p serial.Port, b []byte) error {
 	return nil
 }
 
-// portReader は serial.Port を io.Reader に適合させる。
+// portReader serial.Port を io.Reader に適合させる。
 type portReader struct {
 	p serial.Port
 }
