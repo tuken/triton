@@ -13,17 +13,17 @@ import (
 )
 
 const (
-	// DefaultTimeout は Read の1回あたりの待ち時間。境界でこの時間を超えると
+	// DefaultTimeout Read の1回あたりの待ち時間。境界でこの時間を超えると
 	// ErrReadTimeout として扱い、Run はループを一巡して ctx を確認する。
 	DefaultTimeout = 4 * time.Second
 )
 
-// Handler は受信フレームを処理する関数。登録した型のフレームが届くと呼ばれる。
+// Handler 受信フレームを処理する関数。登録した型のフレームが届くと呼ばれる。
 // dispatch は Run の読み取りループ内で同期的に呼ぶため、重い処理は自前の
 // goroutine に逃がすこと（さもないと後続フレームの読み取りが滞る）。
 type Handler func(*Com, Frame)
 
-// Com は go.bug.st/serial を使った USB シリアル通信のクライアント。
+// Com go.bug.st/serial を使った USB シリアル通信のクライアント。
 type Com struct {
 	portName string
 	port     serial.Port
@@ -38,13 +38,14 @@ type Com struct {
 
 // NewCom は空の Com を生成する。
 func NewCom(ctx context.Context) *Com {
+
 	return &Com{
 		handlers: make(map[byte]Handler),
 		ctx:      ctx,
 	}
 }
 
-// Handle は種別 typ のフレームを受信したときに呼ぶハンドラを登録する。
+// Handle 種別 typ のフレームを受信したときに呼ぶハンドラを登録する。
 // 同じ型に再登録すると上書きする。nil を渡すと登録解除。
 func (c *Com) Handle(typ byte, h Handler) {
 
@@ -64,7 +65,7 @@ func (c *Com) Context() context.Context {
 	return c.ctx
 }
 
-// Connect は COM ポートを開く。
+// Connect COM ポートを開く。
 func (c *Com) Connect(portName string, mode *serial.Mode) error {
 
 	port, err := serial.Open(portName, mode)
@@ -84,7 +85,7 @@ func (c *Com) Connect(portName string, mode *serial.Mode) error {
 	return nil
 }
 
-// Disconnect はポートを閉じる。Run 実行中に呼ぶと、ブロック中の Read が解除され
+// Disconnect ポートを閉じる。Run 実行中に呼ぶと、ブロック中の Read が解除され
 // Run は nil を返して終了する。
 func (c *Com) Disconnect() error {
 
@@ -102,7 +103,7 @@ func (c *Com) Disconnect() error {
 	return nil
 }
 
-// Run は常時 Read し続け、1フレームごとに登録ハンドラへディスパッチする。
+// Run 常時 Read し続け、1フレームごとに登録ハンドラへディスパッチする。
 // 次のいずれかで終了する:
 //
 //   - ctx がキャンセルされた（ctx.Err() を返す）
@@ -123,8 +124,10 @@ func (c *Com) Run() error {
 
 		// ctx キャンセルを毎ループ確認する（Read は最大 DefaultTimeout でリターンする）
 		select {
+
 		case <-c.ctx.Done():
 			return c.ctx.Err()
+
 		default:
 		}
 
@@ -153,7 +156,7 @@ func (c *Com) Run() error {
 	}
 }
 
-// dispatch は typ に対応するハンドラを呼ぶ。未登録なら何もしない。
+// dispatch typ に対応するハンドラを呼ぶ。未登録なら何もしない。
 func (c *Com) dispatch(log *zap.SugaredLogger, typ byte, frame Frame) {
 
 	c.mu.RLock()
@@ -168,7 +171,7 @@ func (c *Com) dispatch(log *zap.SugaredLogger, typ byte, frame Frame) {
 	h(c, frame)
 }
 
-// Write は1つのリクエストフレームを送信する。送信は writeMu で直列化する。
+// Write 1つのリクエストフレームを送信する。送信は writeMu で直列化する。
 func (c *Com) Write(m Marshaler) error {
 
 	if c.port == nil {
