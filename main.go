@@ -13,7 +13,7 @@ import (
 
 	myctx "github.com/tuken/triton/context"
 	"github.com/tuken/triton/logger"
-	"github.com/tuken/triton/serial"
+	"github.com/tuken/triton/serial2"
 	"github.com/tuken/triton/usb"
 	goser "go.bug.st/serial"
 )
@@ -45,7 +45,7 @@ func main() {
 	defer watch.Stop()
 
 	// 現在の接続。未接続なら com == nil。runDone は Run goroutine の終了通知。
-	var com *serial.Com
+	var com *serial2.Com
 	var runDone chan struct{}
 
 	// connect はポートを開き、Run を goroutine で開始する。
@@ -55,13 +55,13 @@ func main() {
 			return // 既に接続済み
 		}
 
-		c := serial.NewCom(ctx)
+		c := serial2.NewCom(ctx)
 
-		c.Handle(serial.TypeUplinkNotify, handleUplinkNotify)
-		c.Handle(serial.TypeDownlinkResponse, handleDownlinkResponse)
-		c.Handle(serial.TypeInfoResponse, handleInfoResponse)
-		c.Handle(serial.TypeDFUResponse, handleDFUResponse)
-		c.Handle(serial.TypeErrorNotify, handleErrorNotify)
+		c.Handle(serial2.TypeUplinkNotify, handleUplinkNotify)
+		c.Handle(serial2.TypeDownlinkResponse, handleDownlinkResponse)
+		c.Handle(serial2.TypeInfoResponse, handleInfoResponse)
+		c.Handle(serial2.TypeDFUResponse, handleDFUResponse)
+		c.Handle(serial2.TypeErrorNotify, handleErrorNotify)
 
 		if err := c.Connect(portName, mode); err != nil {
 			log.Errorw("USB接続エラー", "port", portName, "error", err)
@@ -136,11 +136,11 @@ func main() {
 	}
 }
 
-func handleUplinkNotify(c *serial.Com, f serial.Frame) {
+func handleUplinkNotify(c *serial2.Com, f serial2.Frame) {
 
 	log := myctx.MustLogger(c.Context())
 
-	notify, ok := f.(*serial.UplinkNotify)
+	notify, ok := f.(*serial2.UplinkNotify)
 	if !ok {
 		log.Errorw("Invalid frame type")
 		return
@@ -175,11 +175,11 @@ func handleUplinkNotify(c *serial.Com, f serial.Frame) {
 	}
 }
 
-func handleDownlinkResponse(c *serial.Com, f serial.Frame) {
+func handleDownlinkResponse(c *serial2.Com, f serial2.Frame) {
 
 	log := myctx.MustLogger(c.Context())
 
-	resp, ok := f.(*serial.DownlinkResponse)
+	resp, ok := f.(*serial2.DownlinkResponse)
 	if !ok {
 		log.Errorw("Invalid frame type")
 		return
@@ -188,11 +188,11 @@ func handleDownlinkResponse(c *serial.Com, f serial.Frame) {
 	log.Infow("DownlinkResponse 受信", "result", resp.Result)
 }
 
-func handleInfoResponse(c *serial.Com, f serial.Frame) {
+func handleInfoResponse(c *serial2.Com, f serial2.Frame) {
 
 	log := myctx.MustLogger(c.Context())
 
-	resp, ok := f.(*serial.InfoResponse)
+	resp, ok := f.(*serial2.InfoResponse)
 	if !ok {
 		log.Errorw("Invalid frame type")
 		return
@@ -201,11 +201,11 @@ func handleInfoResponse(c *serial.Com, f serial.Frame) {
 	log.Infow("InfoResponse 受信", "command", resp.Command)
 }
 
-func handleDFUResponse(c *serial.Com, f serial.Frame) {
+func handleDFUResponse(c *serial2.Com, f serial2.Frame) {
 
 	log := myctx.MustLogger(c.Context())
 
-	resp, ok := f.(*serial.DFUResponse)
+	resp, ok := f.(*serial2.DFUResponse)
 	if !ok {
 		log.Errorw("Invalid frame type")
 		return
@@ -214,11 +214,11 @@ func handleDFUResponse(c *serial.Com, f serial.Frame) {
 	log.Infow("DFUResponse 受信", "result", resp.Result)
 }
 
-func handleErrorNotify(c *serial.Com, f serial.Frame) {
+func handleErrorNotify(c *serial2.Com, f serial2.Frame) {
 
 	log := myctx.MustLogger(c.Context())
 
-	errNotify, ok := f.(*serial.ErrorNotify)
+	errNotify, ok := f.(*serial2.ErrorNotify)
 	if !ok {
 		log.Errorw("Invalid frame type")
 		return
@@ -226,15 +226,15 @@ func handleErrorNotify(c *serial.Com, f serial.Frame) {
 
 	log.Infow("ErrorNotify 受信", "code", errNotify.Reason)
 
-	if errNotify.Reason == serial.ReasonKeepAliveRequired {
+	if errNotify.Reason == serial2.ReasonKeepAliveRequired {
 
 		log.Infow("LocalTime", "time", time.Now().Local().Unix())
 		log.Infow("UnixTime", "time", time.Now().Unix())
 
-		ir := serial.InfoRequest{
+		ir := serial2.InfoRequest{
 			ProtocolVersion: 0x01,
 			Type:            0x01,
-			Command:         serial.CommandKeepAlive,
+			Command:         serial2.CommandKeepAlive,
 			LocalTime:       uint32(time.Now().Local().Unix()),
 			UnixTime:        uint32(time.Now().Unix()),
 		}
