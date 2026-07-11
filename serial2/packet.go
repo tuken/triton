@@ -249,11 +249,11 @@ func (p *InfoResponse) VariableSize(fixed []byte) int {
 
 		b := fixed[6]
 
-		if b >= byte(CommandGetDeviceListBase) && b < byte(CommandGetDeviceListBase)+byte(CommandGetDeviceListMax) {
+		if b >= byte(CommandGetDeviceListBase) && b <= byte(CommandGetDeviceListBase)+byte(CommandGetDeviceListMax) {
 			return 9
 		}
 
-		if b >= byte(CommandRemoveDeviceListBase) && b < byte(CommandRemoveDeviceListBase)+byte(CommandRemoveDeviceListMax) {
+		if b >= byte(CommandRemoveDeviceListBase) && b <= byte(CommandRemoveDeviceListBase)+byte(CommandRemoveDeviceListMax) {
 			return 1
 		}
 

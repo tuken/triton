@@ -59,26 +59,42 @@ func newFrameByType(typ byte) (Frame, error) {
 // readFrame r から1フレームを読み出し、種別(Type)と Unmarshal 済みの Frame を返す。
 // タイムアウトを扱わず、データが来るまで（またはポートが閉じられるまで）ブロックする。
 //
-//  1. ヘッダ2バイトを読む
+//  1. フレーム先頭（ProtocolVersion + 既知 Type）まで同期する
 //  2. Type から受け取る構造体を決める
 //  3. 固定長部まで残りを読む
 //  4. 固定部から可変長サイズを求め、あればその分を追加で読む
 //  5. 全体を1回だけ Unmarshal する
 func readFrame(r io.Reader) (byte, Frame, error) {
 
-	// 1) ヘッダ2バイト
+	// 1) フレーム先頭に同期する。
+	//    ヘッダ2バイトを読み、[0]=ProtocolVersion かつ [1]=既知 Type に
+	//    なるまで1バイトずつ読み進める。これにより、雑音（例: ASCII バナー）や
+	//    直前フレームの長さズレで生じた同期ズレから、次の正しいフレーム境界へ
+	//    復帰できる（未知バイトで受信を止めない）。
 	header := make([]byte, 2)
 	if _, err := io.ReadFull(r, header); err != nil {
 		return 0, nil, err
 	}
 
-	typ := header[1]
+	var f Frame
 
-	// 2) 種別決定
-	f, err := newFrameByType(typ)
-	if err != nil {
-		return typ, nil, err
+	for {
+
+		if header[0] == ProtocolVersion {
+			if fr, err := newFrameByType(header[1]); err == nil {
+				f = fr
+				break
+			}
+		}
+
+		// 同期ズレ：ウィンドウを1バイトずらして先頭を探し直す。
+		header[0] = header[1]
+		if _, err := io.ReadFull(r, header[1:2]); err != nil {
+			return 0, nil, err
+		}
 	}
+
+	typ := header[1]
 
 	// 3) 固定長部
 	fixedSize := f.FixedSize()
