@@ -1,4 +1,4 @@
-package serial
+package serial1
 
 import (
 	"context"
