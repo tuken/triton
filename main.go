@@ -14,7 +14,6 @@ import (
 	myctx "github.com/tuken/triton/context"
 	"github.com/tuken/triton/logger"
 	"github.com/tuken/triton/serial"
-	"github.com/tuken/triton/serial2"
 	"github.com/tuken/triton/usb"
 	goser "go.bug.st/serial"
 )
@@ -137,11 +136,11 @@ func main() {
 	}
 }
 
-func handleUplinkNotify(c *serial.Com, f serial.Frame) {
+func handleUplinkNotify(c *serial.Com, p serial.Packet) {
 
 	log := myctx.MustLogger(c.Context())
 
-	notify, ok := f.(*serial2.UplinkNotify)
+	notify, ok := p.(*serial.UplinkNotify)
 	if !ok {
 		log.Errorw("Invalid frame type")
 		return
@@ -176,11 +175,11 @@ func handleUplinkNotify(c *serial.Com, f serial.Frame) {
 	}
 }
 
-func handleDownlinkResponse(c *serial.Com, f serial.Frame) {
+func handleDownlinkResponse(c *serial.Com, p serial.Packet) {
 
 	log := myctx.MustLogger(c.Context())
 
-	resp, ok := f.(*serial.DownlinkResponse)
+	resp, ok := p.(*serial.DownlinkResponse)
 	if !ok {
 		log.Errorw("Invalid frame type")
 		return
@@ -189,11 +188,11 @@ func handleDownlinkResponse(c *serial.Com, f serial.Frame) {
 	log.Infow("DownlinkResponse 受信", "result", resp.Result)
 }
 
-func handleInfoResponse(c *serial.Com, f serial.Frame) {
+func handleInfoResponse(c *serial.Com, p serial.Packet) {
 
 	log := myctx.MustLogger(c.Context())
 
-	resp, ok := f.(*serial.InfoResponse)
+	resp, ok := p.(*serial.InfoResponse)
 	if !ok {
 		log.Errorw("Invalid frame type")
 		return
@@ -202,11 +201,11 @@ func handleInfoResponse(c *serial.Com, f serial.Frame) {
 	log.Infow("InfoResponse 受信", "command", resp.Command)
 }
 
-func handleDFUResponse(c *serial.Com, f serial.Frame) {
+func handleDFUResponse(c *serial.Com, p serial.Packet) {
 
 	log := myctx.MustLogger(c.Context())
 
-	resp, ok := f.(*serial.DFUResponse)
+	resp, ok := p.(*serial.DFUResponse)
 	if !ok {
 		log.Errorw("Invalid frame type")
 		return
@@ -215,11 +214,11 @@ func handleDFUResponse(c *serial.Com, f serial.Frame) {
 	log.Infow("DFUResponse 受信", "result", resp.Result)
 }
 
-func handleErrorNotify(c *serial.Com, f serial.Frame) {
+func handleErrorNotify(c *serial.Com, p serial.Packet) {
 
 	log := myctx.MustLogger(c.Context())
 
-	errNotify, ok := f.(*serial.ErrorNotify)
+	errNotify, ok := p.(*serial.ErrorNotify)
 	if !ok {
 		log.Errorw("Invalid frame type")
 		return
