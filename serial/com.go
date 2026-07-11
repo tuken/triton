@@ -15,7 +15,7 @@ import (
 // Handler 受信フレームを処理する関数。登録した型のフレームが届くと呼ばれる。
 // dispatch は Run の読み取りループ内で同期的に呼ぶため、重い処理は自前の
 // goroutine に逃がすこと（さもないと後続フレームの読み取りが滞る）。
-type Handler func(*Com, Frame)
+type Handler func(*Com, Packet)
 
 // Com go.bug.st/serial を使った USB シリアル通信のクライアント。
 //
@@ -118,11 +118,11 @@ func (c *Com) Run() error {
 	}
 
 	log := myctx.MustLogger(c.ctx)
-	r := &portReader{p: c.port}
+	// r := c.port
 
 	for {
 
-		typ, frame, err := readFrame(r)
+		typ, p, err := readPacket(c.port)
 		if err != nil {
 
 			// Disconnect/Close によるポートクローズは正常終了とみなす。
@@ -144,12 +144,12 @@ func (c *Com) Run() error {
 			return err
 		}
 
-		c.dispatch(log, typ, frame)
+		c.dispatch(log, typ, p)
 	}
 }
 
 // dispatch typ に対応するハンドラを呼ぶ。未登録なら何もしない。
-func (c *Com) dispatch(log *zap.SugaredLogger, typ byte, frame Frame) {
+func (c *Com) dispatch(log *zap.SugaredLogger, typ byte, p Packet) {
 
 	c.mu.RLock()
 	h := c.handlers[typ]
@@ -160,7 +160,7 @@ func (c *Com) dispatch(log *zap.SugaredLogger, typ byte, frame Frame) {
 		return
 	}
 
-	h(c, frame)
+	h(c, p)
 }
 
 // Write 1つのリクエストフレームを送信する。送信は writeMu で直列化する。
@@ -195,11 +195,7 @@ func writeAll(p serial.Port, b []byte) error {
 	return nil
 }
 
-// portReader serial.Port を io.Reader に適合させる。
-type portReader struct {
-	p serial.Port
-}
+func (c *Com) Read(b []byte) (int, error) {
 
-func (r *portReader) Read(b []byte) (int, error) {
-	return r.p.Read(b)
+	return c.port.Read(b)
 }
