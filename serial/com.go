@@ -114,7 +114,7 @@ func (c *Com) Disconnect() error {
 func (c *Com) Run() error {
 
 	if c.port == nil {
-		return errors.New("serial2: not connected")
+		return errors.New("serial: not connected")
 	}
 
 	log := myctx.MustLogger(c.ctx)
@@ -167,7 +167,7 @@ func (c *Com) dispatch(log *zap.SugaredLogger, typ byte, p Packet) {
 func (c *Com) Write(m Marshaler) error {
 
 	if c.port == nil {
-		return errors.New("serial2: not connected")
+		return errors.New("serial: not connected")
 	}
 
 	c.writeMu.Lock()
@@ -186,7 +186,7 @@ func writeAll(p serial.Port, b []byte) error {
 		}
 
 		if n == 0 {
-			return errors.New("serial2: short write")
+			return errors.New("serial: short write")
 		}
 
 		b = b[n:]
