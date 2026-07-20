@@ -2,10 +2,8 @@ package main
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
-	"math"
 	"os"
 	"os/signal"
 	"syscall"
@@ -60,7 +58,7 @@ func main() {
 
 		c.Handle(serial.TypeUplinkNotify, handleUplinkNotify)
 		c.Handle(serial.TypeDownlinkResponse, handleDownlinkResponse)
-		c.Handle(serial.TypeInfoResponse, handleInfoResponse)
+		c.Handle(serial.TypeJIGInfoResponse, handleJIGInfoResponse)
 		c.Handle(serial.TypeDFUResponse, handleDFUResponse)
 		c.Handle(serial.TypeErrorNotify, handleErrorNotify)
 
@@ -148,32 +146,6 @@ func handleUplinkNotify(c *serial.Com, p serial.Packet) {
 	}
 
 	log.Infow("UplinkNotify 受信", "data length", notify.DataLength, "unix time", time.Unix(int64(notify.UnixTime), 0).UTC(), "device id", fmt.Sprintf("%016x", notify.DeviceID), "sensor id", fmt.Sprintf("%04x", notify.SensorID), "rssi", notify.Rssi, "sequence no", fmt.Sprintf("%04x", notify.SequenceNo))
-
-	if notify.SensorID == 0x0123 {
-
-		type Thermo struct {
-			BatteryLevel byte    `json:"battery_level"`
-			Sampling     byte    `json:"sampling"`
-			Time         uint32  `json:"time"`
-			SampleNum    uint16  `json:"sample_num"`
-			Temperature  float32 `json:"temperature"`
-			Humidity     float32 `json:"humidity"`
-		}
-
-		if len(notify.Data) >= 16 {
-
-			th := Thermo{
-				BatteryLevel: notify.Data[0],
-				Sampling:     notify.Data[1],
-				Time:         binary.LittleEndian.Uint32(notify.Data[2:6]),
-				SampleNum:    binary.LittleEndian.Uint16(notify.Data[6:8]),
-				Temperature:  math.Float32frombits(binary.LittleEndian.Uint32(notify.Data[8:12])),
-				Humidity:     math.Float32frombits(binary.LittleEndian.Uint32(notify.Data[12:16])),
-			}
-
-			log.Infow("温湿度センサデータ", "温度", th.Temperature, "湿度", th.Humidity, "電池残量", th.BatteryLevel, "サンプリング間隔", th.Sampling, "サンプル数", th.SampleNum, "センサ時刻", time.Unix(int64(th.Time), 0).UTC())
-		}
-	}
 }
 
 func handleDownlinkResponse(c *serial.Com, p serial.Packet) {
@@ -189,17 +161,17 @@ func handleDownlinkResponse(c *serial.Com, p serial.Packet) {
 	log.Infow("DownlinkResponse 受信", "result", resp.Result)
 }
 
-func handleInfoResponse(c *serial.Com, p serial.Packet) {
+func handleJIGInfoResponse(c *serial.Com, p serial.Packet) {
 
 	log := myctx.MustLogger(c.Context())
 
-	resp, ok := p.(*serial.InfoResponse)
+	resp, ok := p.(*serial.JIGInfoResponse)
 	if !ok {
 		log.Errorw("Invalid frame type")
 		return
 	}
 
-	log.Infow("InfoResponse 受信", "command", resp.Command)
+	log.Infow("JIGInfoResponse 受信", "jig info", resp)
 }
 
 func handleDFUResponse(c *serial.Com, p serial.Packet) {
