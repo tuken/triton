@@ -223,10 +223,10 @@ func handleErrorNotify(c *serial.Com, p serial.Packet) {
 
 	log.Infow("ErrorNotify 受信", "code", errNotify.Reason)
 
-	if errNotify.Reason == serial.ReasonKeepAliveRequired {
+	// if errNotify.Reason == serial.ReasonKeepAliveRequired {
 
-		log.Infow("KeepAlive要求", "unix time", time.Now().Unix(), "local time", time.Now().Local().Unix())
+	// 	log.Infow("KeepAlive要求", "unix time", time.Now().Unix(), "local time", time.Now().Local().Unix())
 
-		c.Write(packet.NewKeepAliveRequest())
-	}
+	// 	c.Write(packet.NewKeepAliveRequest())
+	// }
 }
