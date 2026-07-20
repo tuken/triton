@@ -14,6 +14,7 @@ import (
 	myctx "github.com/tuken/triton/context"
 	"github.com/tuken/triton/logger"
 	"github.com/tuken/triton/serial"
+	"github.com/tuken/triton/serial/packet"
 	"github.com/tuken/triton/usb"
 	goser "go.bug.st/serial"
 )
@@ -140,7 +141,7 @@ func handleUplinkNotify(c *serial.Com, p serial.Packet) {
 
 	log := myctx.MustLogger(c.Context())
 
-	notify, ok := p.(*serial.UplinkNotify)
+	notify, ok := p.(*packet.UplinkNotify)
 	if !ok {
 		log.Errorw("Invalid frame type")
 		return
