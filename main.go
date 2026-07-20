@@ -104,6 +104,30 @@ func main() {
 	// 既接続・新規挿入はどちらも EventInserted で届くので、ここでは待つだけ。
 	log.Infow("USB挿入待機中")
 
+	susp := make(chan os.Signal, 1)
+	signal.Notify(susp, syscall.SIGTSTP, syscall.SIGCONT)
+
+	go func() {
+
+		for sig := range susp {
+
+			switch sig {
+
+			case syscall.SIGTSTP:
+				log.Infow("一時停止前の処理を実行")
+
+				signal.Reset(syscall.SIGTSTP)
+				com.Write(packet.NewStopRequest())
+
+			case syscall.SIGCONT:
+				log.Infow("再開後の処理を実行")
+
+				signal.Notify(susp, syscall.SIGTSTP)
+				com.Write(packet.NewStartRequest())
+			}
+		}
+	}()
+
 	// イベントループ：挿入で接続、抜去で切断。ctx キャンセルで終了。
 	for {
 
@@ -165,7 +189,7 @@ func handleJIGInfoResponse(c *serial.Com, p serial.Packet) {
 
 	log := myctx.MustLogger(c.Context())
 
-	resp, ok := p.(*serial.JIGInfoResponse)
+	resp, ok := p.(*packet.JIGInfoResponse)
 	if !ok {
 		log.Errorw("Invalid frame type")
 		return
@@ -201,17 +225,8 @@ func handleErrorNotify(c *serial.Com, p serial.Packet) {
 
 	if errNotify.Reason == serial.ReasonKeepAliveRequired {
 
-		log.Infow("LocalTime", "time", time.Now().Local().Unix())
-		log.Infow("UnixTime", "time", time.Now().Unix())
+		log.Infow("KeepAlive要求", "unix time", time.Now().Unix(), "local time", time.Now().Local().Unix())
 
-		ir := serial.InfoRequest{
-			ProtocolVersion: 0x01,
-			Type:            0x01,
-			Command:         serial.CommandKeepAlive,
-			LocalTime:       uint32(time.Now().Local().Unix()),
-			UnixTime:        uint32(time.Now().Unix()),
-		}
-
-		c.Write(&ir)
+		c.Write(packet.NewKeepAliveRequest())
 	}
 }
