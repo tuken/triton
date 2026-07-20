@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/tuken/triton/serial/packet"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -22,7 +23,7 @@ const (
 const (
 	TypeUplinkNotify     byte = 0x00 // アップリンク通知（可変長）
 	TypeDownlinkResponse byte = 0x01 // ダウンリンク応答（固定長）
-	TypeInfoResponse     byte = 0x02 // Info レスポンス（可変長）
+	TypeJIGInfoResponse  byte = 0x02 // JIG Info レスポンス（可変長）
 	TypeDFUResponse      byte = 0x03 // DFU レスポンス（固定長）
 	TypeErrorNotify      byte = 0xFF // エラー通知（固定長）
 )
@@ -55,8 +56,8 @@ func newPacketByType(typ byte) (Packet, error) {
 	case TypeDownlinkResponse:
 		return &DownlinkResponse{}, nil
 
-	case TypeInfoResponse:
-		return &InfoResponse{}, nil
+	case TypeJIGInfoResponse:
+		return &JIGInfoResponse{}, nil
 
 	case TypeDFUResponse:
 		return &DFUResponse{}, nil
@@ -161,36 +162,36 @@ const (
 	ReasonFailureCommand     ErrorReason = 0x0B
 )
 
-type InfoCommand byte
+type JIGInfoCommand byte
 
 const (
-	CommandStop                 InfoCommand = 0x00
-	CommandStart                InfoCommand = 0x01
-	CommandGetVersion           InfoCommand = 0x02
-	CommandGetDeviceListBase    InfoCommand = 0x03
-	CommandGetDeviceListMax     int         = 99
-	CommandGetScanMode          InfoCommand = 0x67
-	CommandSetLongRangeMode     InfoCommand = 0x68
-	CommandSetLegacyMode        InfoCommand = 0x69
-	CommandRemoveAllDeviceList  InfoCommand = 0x6A
-	CommandRemoveDeviceListBase InfoCommand = 0x6B
-	CommandRemoveDeviceListMax  int         = 99
-	CommandGetAllDeviceList     InfoCommand = 0xCF
-	CommandKeepAlive            InfoCommand = 0xD0
+	CommandStop                 JIGInfoCommand = 0x00
+	CommandStart                JIGInfoCommand = 0x01
+	CommandGetVersion           JIGInfoCommand = 0x02
+	CommandGetDeviceListBase    JIGInfoCommand = 0x03
+	CommandGetDeviceListMax     int            = 99
+	CommandGetScanMode          JIGInfoCommand = 0x67
+	CommandSetLongRangeMode     JIGInfoCommand = 0x68
+	CommandSetLegacyMode        JIGInfoCommand = 0x69
+	CommandRemoveAllDeviceList  JIGInfoCommand = 0x6A
+	CommandRemoveDeviceListBase JIGInfoCommand = 0x6B
+	CommandRemoveDeviceListMax  int            = 99
+	CommandGetAllDeviceList     JIGInfoCommand = 0xCF
+	CommandKeepAlive            JIGInfoCommand = 0xD0
 )
 
 // CommandGetDeviceList index(0..99) から CommandGetDeviceListN を生成する
-func CommandGetDeviceList(index int) (InfoCommand, error) {
+func CommandGetDeviceList(index int) (JIGInfoCommand, error) {
 
 	if index < 0 || index > CommandGetDeviceListMax {
 		return 0, fmt.Errorf("device list index out of range: %d", index)
 	}
 
-	return InfoCommand(int(CommandGetDeviceListBase) + index), nil
+	return JIGInfoCommand(int(CommandGetDeviceListBase) + index), nil
 }
 
 // GetDeviceListIndex CommandGetDeviceListN なら N と true を返す。
-func (c InfoCommand) GetDeviceListIndex() (int, bool) {
+func (c JIGInfoCommand) GetDeviceListIndex() (int, bool) {
 
 	index := int(c) - int(CommandGetDeviceListBase)
 
@@ -202,17 +203,17 @@ func (c InfoCommand) GetDeviceListIndex() (int, bool) {
 }
 
 // CommandRemoveDeviceList index(0..99) から CommandRemoveDeviceListN を生成する
-func CommandRemoveDeviceList(index int) (InfoCommand, error) {
+func CommandRemoveDeviceList(index int) (JIGInfoCommand, error) {
 
 	if index < 0 || index > CommandRemoveDeviceListMax {
 		return 0, fmt.Errorf("device list index out of range: %d", index)
 	}
 
-	return InfoCommand(int(CommandRemoveDeviceListBase) + index), nil
+	return JIGInfoCommand(int(CommandRemoveDeviceListBase) + index), nil
 }
 
 // RemoveDeviceListIndex CommandRemoveDeviceListN なら N と true を返す。
-func (c InfoCommand) RemoveDeviceListIndex() (int, bool) {
+func (c JIGInfoCommand) RemoveDeviceListIndex() (int, bool) {
 
 	index := int(c) - int(CommandRemoveDeviceListBase)
 
@@ -221,6 +222,50 @@ func (c InfoCommand) RemoveDeviceListIndex() (int, bool) {
 	}
 
 	return index, true
+}
+
+func (c JIGInfoCommand) String() string {
+
+	switch c {
+
+	case CommandStop:
+		return "Stop"
+
+	case CommandStart:
+		return "Start"
+
+	case CommandGetVersion:
+		return "GetVersion"
+
+	case CommandGetScanMode:
+		return "GetScanMode"
+
+	case CommandSetLongRangeMode:
+		return "SetLongRangeMode"
+
+	case CommandSetLegacyMode:
+		return "SetLegacyMode"
+
+	case CommandRemoveAllDeviceList:
+		return "RemoveAllDeviceList"
+
+	case CommandGetAllDeviceList:
+		return "GetAllDeviceList"
+
+	case CommandKeepAlive:
+		return "KeepAlive"
+
+	default:
+		if index, ok := c.GetDeviceListIndex(); ok {
+			return fmt.Sprintf("GetDeviceList[%d]", index)
+		}
+
+		if index, ok := c.RemoveDeviceListIndex(); ok {
+			return fmt.Sprintf("RemoveDeviceList[%d]", index)
+		}
+
+		return fmt.Sprintf("Unknown(0x%02X)", byte(c))
+	}
 }
 
 type DownlinkResult byte
@@ -245,7 +290,7 @@ type DownlinkResponse struct {
 	DeviceID        uint64         // Index 6-13: Little Endian
 	SensorID        uint16         // Index 14-15: Little Endian
 	SequenceNo      uint16         // Index 16-17: Little Endian
-	Command         InfoCommand    // Index 18: コマンドコード
+	Command         JIGInfoCommand // Index 18: コマンドコード
 	Result          DownlinkResult // Index 19: 結果コード
 }
 
@@ -261,7 +306,7 @@ func (p *DownlinkResponse) Unmarshal(buf []byte) error {
 	p.DeviceID = binary.LittleEndian.Uint64(buf[6:14])
 	p.SensorID = binary.LittleEndian.Uint16(buf[14:16])
 	p.SequenceNo = binary.LittleEndian.Uint16(buf[16:18])
-	p.Command = InfoCommand(buf[18])
+	p.Command = JIGInfoCommand(buf[18])
 	p.Result = DownlinkResult(buf[19])
 
 	return nil
@@ -277,17 +322,17 @@ func (p *DownlinkResponse) VariableSize(fixed []byte) int {
 	return 0
 }
 
-// InfoResponse Infoレスポンスパケット（可変長、Commandにより長さが決まる）
-type InfoResponse struct {
-	ProtocolVersion byte        // Index 0: 0x01
-	Type            byte        // Index 1: 0x02
-	UnixTime        uint32      // Index 2-5: Little Endian
-	Command         InfoCommand // Index 6: コマンドコード
-	RouterDeviceID  uint64      // Index 7-14: Little Endian
-	Data            []byte      // Index 15-: 可変長データ（Commandで長さが決まる）
+// JIGInfoResponse Infoレスポンスパケット（可変長、Commandにより長さが決まる）
+type JIGInfoResponse struct {
+	ProtocolVersion byte           // Index 0: 0x01
+	Type            byte           // Index 1: 0x02
+	UnixTime        uint32         // Index 2-5: Little Endian
+	Command         JIGInfoCommand // Index 6: コマンドコード
+	RouterDeviceID  uint64         // Index 7-14: Little Endian
+	Data            []byte         // Index 15-: 可変長データ（Commandで長さが決まる）
 }
 
-func (p *InfoResponse) Unmarshal(buf []byte) error {
+func (p *JIGInfoResponse) Unmarshal(buf []byte) error {
 
 	if len(buf) < 15 {
 		return fmt.Errorf("too short: %d bytes", len(buf))
@@ -296,7 +341,7 @@ func (p *InfoResponse) Unmarshal(buf []byte) error {
 	p.ProtocolVersion = buf[0]
 	p.Type = buf[1]
 	p.UnixTime = binary.LittleEndian.Uint32(buf[2:6])
-	p.Command = InfoCommand(buf[6])
+	p.Command = JIGInfoCommand(buf[6])
 	p.RouterDeviceID = binary.LittleEndian.Uint64(buf[7:15])
 
 	if len(buf) > 15 {
@@ -306,18 +351,18 @@ func (p *InfoResponse) Unmarshal(buf []byte) error {
 	return nil
 }
 
-func (p *InfoResponse) FixedSize() int {
+func (p *JIGInfoResponse) FixedSize() int {
 	return 15
 }
 
-func (p *InfoResponse) VariableSize(fixed []byte) int {
+func (p *JIGInfoResponse) VariableSize(fixed []byte) int {
 
 	// Command は固定部 Index 6 にある
 	if len(fixed) < 7 {
 		return 0
 	}
 
-	switch InfoCommand(fixed[6]) {
+	switch JIGInfoCommand(fixed[6]) {
 
 	case CommandStop, CommandStart, CommandSetLongRangeMode, CommandSetLegacyMode, CommandRemoveAllDeviceList:
 		return 1
@@ -342,6 +387,16 @@ func (p *InfoResponse) VariableSize(fixed []byte) int {
 
 		return 0
 	}
+}
+
+func (p *JIGInfoResponse) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+
+	enc.AddUint32("unixTime", p.UnixTime)
+	enc.AddString("command", p.Command.String())
+	enc.AddString("routerDeviceID", fmt.Sprintf("0x%016X", p.RouterDeviceID))
+	enc.AddInt("data length", len(p.Data))
+
+	return nil
 }
 
 // DFUResponse DFUレスポンスパケット（7バイト固定）
@@ -406,11 +461,11 @@ func (p *ErrorNotify) VariableSize(fixed []byte) int {
 
 // InfoRequest Infoリクエストパケット（11バイト固定）
 type InfoRequest struct {
-	ProtocolVersion byte        // Index 0: 0x01
-	Type            byte        // Index 1: 0x01
-	Command         InfoCommand // Index 2: コマンドコード
-	LocalTime       uint32      // Index 3-6: Little Endian
-	UnixTime        uint32      // Index 7-10: Little Endian
+	ProtocolVersion byte           // Index 0: 0x01
+	Type            byte           // Index 1: 0x01
+	Command         JIGInfoCommand // Index 2: コマンドコード
+	LocalTime       uint32         // Index 3-6: Little Endian
+	UnixTime        uint32         // Index 7-10: Little Endian
 }
 
 func (p *InfoRequest) Marshal() []byte {
@@ -428,14 +483,14 @@ func (p *InfoRequest) Marshal() []byte {
 
 // DownlinkRequest ダウンリンクリクエストパケット（可変長、DataLengthで指定される）
 type DownlinkRequest struct {
-	ProtocolVersion byte        // Index 0: 0x01
-	Type            byte        // Index 1: 0x00
-	DataLength      uint16      // Index 2-3: データ長（0..65535）
-	UnixTime        uint32      // Index 4-7: Little Endian
-	DeviceID        uint64      // Index 8-15: Little Endian
-	SensorID        uint16      // Index 16-17: Little Endian
-	Command         InfoCommand // Index 18: コマンドコード
-	SequenceNo      uint16      // Index 19-20: Little Endian
+	ProtocolVersion byte           // Index 0: 0x01
+	Type            byte           // Index 1: 0x00
+	DataLength      uint16         // Index 2-3: データ長（0..65535）
+	UnixTime        uint32         // Index 4-7: Little Endian
+	DeviceID        uint64         // Index 8-15: Little Endian
+	SensorID        uint16         // Index 16-17: Little Endian
+	Command         JIGInfoCommand // Index 18: コマンドコード
+	SequenceNo      uint16         // Index 19-20: Little Endian
 }
 
 func (p *DownlinkRequest) Marshal() []byte {
