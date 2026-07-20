@@ -15,21 +15,21 @@ const (
 	CommandStart                JIGInfoCommand = 0x01
 	CommandGetVersion           JIGInfoCommand = 0x02
 	CommandGetDeviceListBase    JIGInfoCommand = 0x03
-	CommandGetDeviceListMax     int            = 99
 	CommandGetScanMode          JIGInfoCommand = 0x67
 	CommandSetLongRangeMode     JIGInfoCommand = 0x68
 	CommandSetLegacyMode        JIGInfoCommand = 0x69
 	CommandRemoveAllDeviceList  JIGInfoCommand = 0x6A
 	CommandRemoveDeviceListBase JIGInfoCommand = 0x6B
-	CommandRemoveDeviceListMax  int            = 99
 	CommandGetAllDeviceList     JIGInfoCommand = 0xCF
 	CommandKeepAlive            JIGInfoCommand = 0xD0
 )
 
+const DeviceListMax int = 99
+
 // CommandGetDeviceList index(0..99) から CommandGetDeviceListN を生成する
 func CommandGetDeviceList(index int) (JIGInfoCommand, error) {
 
-	if index < 0 || index > CommandGetDeviceListMax {
+	if index < 0 || index > DeviceListMax {
 		return 0, fmt.Errorf("device list index out of range: %d", index)
 	}
 
@@ -41,7 +41,7 @@ func (c JIGInfoCommand) GetDeviceListIndex() (int, bool) {
 
 	index := int(c) - int(CommandGetDeviceListBase)
 
-	if index < 0 || index > CommandGetDeviceListMax {
+	if index < 0 || index > DeviceListMax {
 		return 0, false
 	}
 
@@ -51,7 +51,7 @@ func (c JIGInfoCommand) GetDeviceListIndex() (int, bool) {
 // CommandRemoveDeviceList index(0..99) から CommandRemoveDeviceListN を生成する
 func CommandRemoveDeviceList(index int) (JIGInfoCommand, error) {
 
-	if index < 0 || index > CommandRemoveDeviceListMax {
+	if index < 0 || index > DeviceListMax {
 		return 0, fmt.Errorf("device list index out of range: %d", index)
 	}
 
@@ -63,7 +63,7 @@ func (c JIGInfoCommand) RemoveDeviceListIndex() (int, bool) {
 
 	index := int(c) - int(CommandRemoveDeviceListBase)
 
-	if index < 0 || index > CommandRemoveDeviceListMax {
+	if index < 0 || index > DeviceListMax {
 		return 0, false
 	}
 
@@ -224,11 +224,11 @@ func (p *JIGInfoResponse) VariableSize(fixed []byte) int {
 
 		b := fixed[6]
 
-		if b >= byte(CommandGetDeviceListBase) && b <= byte(CommandGetDeviceListBase)+byte(CommandGetDeviceListMax) {
+		if b >= byte(CommandGetDeviceListBase) && b <= byte(CommandGetDeviceListBase)+byte(DeviceListMax) {
 			return 9
 		}
 
-		if b >= byte(CommandRemoveDeviceListBase) && b <= byte(CommandRemoveDeviceListBase)+byte(CommandRemoveDeviceListMax) {
+		if b >= byte(CommandRemoveDeviceListBase) && b <= byte(CommandRemoveDeviceListBase)+byte(DeviceListMax) {
 			return 1
 		}
 
@@ -238,9 +238,46 @@ func (p *JIGInfoResponse) VariableSize(fixed []byte) int {
 
 func (p *JIGInfoResponse) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 
-	enc.AddUint32("unixTime", p.UnixTime)
+	enc.AddString("name", "JIG Info レスポンス")
+	enc.AddTime("unixTime", time.Unix(int64(p.UnixTime), 0))
 	enc.AddString("command", p.Command.String())
 	enc.AddString("routerDeviceID", fmt.Sprintf("0x%016X", p.RouterDeviceID))
+
+	switch p.Command {
+
+	case CommandStop, CommandStart, CommandSetLongRangeMode, CommandSetLegacyMode, CommandRemoveAllDeviceList:
+		if p.Data[0] == 0x01 {
+			enc.AddString("data", "成功")
+		} else {
+			enc.AddString("data", "失敗")
+		}
+
+	case CommandGetScanMode:
+		if p.Data[0] == 0x01 {
+			enc.AddString("data", "Legacy")
+		} else {
+			enc.AddString("data", "Long Range")
+		}
+
+	case CommandGetVersion:
+		enc.AddString("data", fmt.Sprintf("バージョン %d.%d.%d", p.Data[0], p.Data[1], p.Data[2]))
+
+	default:
+
+		if _, ok := p.Command.GetDeviceListIndex(); ok {
+			enc.AddString("data", fmt.Sprintf("デバイスリスト %d:0x%08X", p.Data[0], binary.LittleEndian.Uint64(p.Data[1:9])))
+		}
+
+		if _, ok := p.Command.RemoveDeviceListIndex(); ok {
+
+			if p.Data[0] == 0x01 {
+				enc.AddString("data", "成功")
+			} else {
+				enc.AddString("data", "失敗")
+			}
+		}
+	}
+
 	enc.AddInt("data length", len(p.Data))
 
 	return nil
