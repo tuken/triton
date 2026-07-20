@@ -19,5 +19,5 @@ func NewLogger( /*filename string*/ ) *zap.SugaredLogger {
 	defaultLogLevel := zapcore.DebugLevel
 	core := zapcore.NewTee(zapcore.NewCore(fileEncoder, writer, defaultLogLevel))
 
-	return zap.New(core, zap.AddCaller(), zap.AddCallerSkip(1), zap.AddStacktrace(zapcore.ErrorLevel)).Sugar()
+	return zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel)).Sugar()
 }
