@@ -215,13 +215,13 @@ func handleErrorNotify(c *serial.Com, p serial.Packet) {
 
 	log := myctx.MustLogger(c.Context())
 
-	errNotify, ok := p.(*serial.ErrorNotify)
+	err, ok := p.(*packet.ErrorNotify)
 	if !ok {
 		log.Errorw("Invalid frame type")
 		return
 	}
 
-	log.Infow("ErrorNotify 受信", "code", errNotify.Reason)
+	log.Infow("エラー通知", "packet", err)
 
 	// if errNotify.Reason == serial.ReasonKeepAliveRequired {
 
