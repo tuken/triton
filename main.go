@@ -114,13 +114,13 @@ func main() {
 			switch sig {
 
 			case syscall.SIGTSTP:
-				log.Infow("一時停止前の処理を実行")
+				log.Infow("一時停止!!!")
 
 				signal.Reset(syscall.SIGTSTP)
 				com.Write(packet.NewStopRequest())
 
 			case syscall.SIGCONT:
-				log.Infow("再開後の処理を実行")
+				log.Infow("再開!!!")
 
 				signal.Notify(susp, syscall.SIGTSTP)
 				com.Write(packet.NewStartRequest())
@@ -195,7 +195,7 @@ func handleJIGInfoResponse(c *serial.Com, p serial.Packet) {
 		return
 	}
 
-	log.Infow("JIGInfoResponse 受信", "jig info", resp)
+	log.Infow("JIG Infoレスポンス", "packet", resp)
 }
 
 func handleDFUResponse(c *serial.Com, p serial.Packet) {
