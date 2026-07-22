@@ -4,6 +4,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+
+	"go.uber.org/zap/zapcore"
 )
 
 type measureData struct {
@@ -87,6 +89,25 @@ func (h *Hygrothermo) Unmarshal(senID, seqNo uint16, buf []byte) error {
 		}
 
 		h.Unmarshal(senID, seqNo, buf[offset:])
+	}
+
+	return nil
+}
+
+func (h *Hygrothermo) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+
+	enc.AddInt("batteryLevel", int(h.BatteryLevel))
+	enc.AddInt("sampling", int(h.Sampling))
+	enc.AddUint32("time", h.Time)
+	enc.AddInt("sampleNum", int(h.sampleNum))
+
+	for i, m := range h.MeasureData {
+
+		enc.AddObject(fmt.Sprintf("measureData[%d]", i), zapcore.ObjectMarshalerFunc(func(enc zapcore.ObjectEncoder) error {
+			enc.AddFloat32("temperature", m.Temperature)
+			enc.AddFloat32("humidity", m.Humidity)
+			return nil
+		}))
 	}
 
 	return nil
