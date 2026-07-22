@@ -62,7 +62,7 @@ func newPacketByType(typ byte) (Packet, error) {
 		return &DFUResponse{}, nil
 
 	case TypeErrorNotify:
-		return &ErrorNotify{}, nil
+		return &packet.ErrorNotify{}, nil
 
 	default:
 		return nil, fmt.Errorf("unknown frame type: 0x%02X", typ)
@@ -148,19 +148,6 @@ type Marshaler interface {
 	Marshal() []byte
 }
 
-type ErrorReason byte
-
-const (
-	ReasonInvalidRequest     ErrorReason = 0x01
-	ReasonDownlinking        ErrorReason = 0x02
-	ReasonNotFoundDevice     ErrorReason = 0x06
-	ReasonKeepAliveRequired  ErrorReason = 0x07
-	ReasonNotAdvertingDevice ErrorReason = 0x08
-	ReasonBusy               ErrorReason = 0x09
-	ReasonTimeout            ErrorReason = 0x0A
-	ReasonFailureCommand     ErrorReason = 0x0B
-)
-
 type DownlinkResult byte
 
 const (
@@ -242,36 +229,6 @@ func (p *DFUResponse) FixedSize() int {
 }
 
 func (p *DFUResponse) VariableSize(fixed []byte) int {
-	return 0
-}
-
-// ErrorNotify エラー通知パケット（7バイト固定）
-type ErrorNotify struct {
-	ProtocolVersion byte        // Index 0: 0x01
-	Type            byte        // Index 1: 0xFF
-	UnixTime        uint32      // Index 2-5: Little Endian
-	Reason          ErrorReason // Index 6
-}
-
-func (p *ErrorNotify) Unmarshal(buf []byte) error {
-
-	if len(buf) < 7 {
-		return fmt.Errorf("too short: %d bytes", len(buf))
-	}
-
-	p.ProtocolVersion = buf[0]
-	p.Type = buf[1]
-	p.UnixTime = binary.LittleEndian.Uint32(buf[2:6])
-	p.Reason = ErrorReason(buf[6])
-
-	return nil
-}
-
-func (p *ErrorNotify) FixedSize() int {
-	return 7
-}
-
-func (p *ErrorNotify) VariableSize(fixed []byte) int {
 	return 0
 }
 
