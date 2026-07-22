@@ -105,7 +105,7 @@ func main() {
 	log.Infow("USB挿入待機中")
 
 	susp := make(chan os.Signal, 1)
-	signal.Notify(susp, syscall.SIGTSTP, syscall.SIGCONT)
+	signal.Notify(susp, syscall.SIGTSTP, syscall.SIGCONT, syscall.SIGUSR1)
 
 	go func() {
 
@@ -124,6 +124,11 @@ func main() {
 
 				signal.Notify(susp, syscall.SIGTSTP)
 				com.Write(packet.NewStartRequest())
+
+			case syscall.SIGUSR1:
+				log.Infow("KeepAlive!!!")
+
+				com.Write(packet.NewKeepAliveRequest())
 			}
 		}
 	}()
