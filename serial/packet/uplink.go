@@ -3,8 +3,10 @@ package packet
 import (
 	"encoding/binary"
 	"fmt"
+	"time"
 
 	"github.com/tuken/triton/serial/packet/uplink"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -12,6 +14,7 @@ const (
 )
 
 type SensorData interface {
+	zapcore.ObjectMarshaler
 
 	// Unmarshal フレーム全体（固定部＋可変部）をパースする。
 	Unmarshal(senID, seqNo uint16, buf []byte) error
@@ -27,8 +30,8 @@ type UplinkNotify struct {
 	SensorID        uint16 // Index 16-17: Little Endian
 	Rssi            byte   // Index 18: RSSI値（-128..127）
 	SequenceNo      uint16 // Index 19-20: Little Endian
-	Data            []byte // Index 21-: 可変長データ（DataLength バイト）
-	SensorData      SensorData
+	// Data            []byte // Index 21-: 可変長データ（DataLength バイト）
+	SensorData SensorData
 }
 
 func (p *UplinkNotify) Unmarshal(buf []byte) error {
@@ -47,15 +50,16 @@ func (p *UplinkNotify) Unmarshal(buf []byte) error {
 	p.SequenceNo = binary.LittleEndian.Uint16(buf[19:21])
 
 	if len(buf) >= 21+int(p.DataLength) {
-		p.Data = append([]byte(nil), buf[21:21+int(p.DataLength)]...)
-	}
+		// p.Data = append([]byte(nil), buf[21:21+int(p.DataLength)]...)
 
-	if p.SensorID == HygrothermoSensorID {
+		switch p.SensorID {
 
-		p.SensorData = &uplink.Hygrothermo{}
+		case HygrothermoSensorID:
+			p.SensorData = &uplink.Hygrothermo{}
 
-		if err := p.SensorData.Unmarshal(p.SensorID, p.SequenceNo, p.Data); err != nil {
-			return err
+			if err := p.SensorData.Unmarshal(p.SensorID, p.SequenceNo, buf[21:21+int(p.DataLength)]); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -75,4 +79,23 @@ func (p *UplinkNotify) VariableSize(fixed []byte) int {
 	}
 
 	return int(binary.LittleEndian.Uint16(fixed[2:4]))
+}
+
+func (p *UplinkNotify) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+
+	enc.AddString("name", "Uplink 通知")
+	enc.AddInt("protocolVersion", int(p.ProtocolVersion))
+	enc.AddInt("type", int(p.Type))
+	enc.AddInt("dataLength", int(p.DataLength))
+	enc.AddTime("unixTime", time.Unix(int64(p.UnixTime), 0))
+	enc.AddString("deviceID", fmt.Sprintf("0x%016X", p.DeviceID))
+	enc.AddString("sensorID", fmt.Sprintf("0x%04X", p.SensorID))
+	enc.AddInt("rssi", int(p.Rssi))
+	enc.AddInt("sequenceNo", int(p.SequenceNo))
+
+	if p.SensorData != nil {
+		enc.AddObject("sensorData", p.SensorData)
+	}
+
+	return nil
 }
