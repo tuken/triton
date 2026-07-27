@@ -116,13 +116,11 @@ func main() {
 			case syscall.SIGTSTP:
 				log.Infow("一時停止!!!")
 
-				signal.Reset(syscall.SIGTSTP)
 				com.Write(packet.NewStopRequest())
 
 			case syscall.SIGCONT:
 				log.Infow("再開!!!")
 
-				signal.Notify(susp, syscall.SIGTSTP)
 				com.Write(packet.NewStartRequest())
 
 			case syscall.SIGUSR1:
