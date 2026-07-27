@@ -3,6 +3,7 @@ package packet
 import (
 	"encoding/binary"
 	"fmt"
+	"time"
 
 	"go.uber.org/zap/zapcore"
 )
@@ -90,7 +91,7 @@ func (p *ErrorNotify) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 	enc.AddString("name", "Error 通知")
 	enc.AddInt("protocolVersion", int(p.ProtocolVersion))
 	enc.AddInt("type", int(p.Type))
-	enc.AddInt("unixTime", int(p.UnixTime))
+	enc.AddTime("unixTime", time.Unix(int64(p.UnixTime), 0))
 	enc.AddObject("reason", p.Reason)
 
 	return nil
