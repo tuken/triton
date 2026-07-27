@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	myctx "github.com/tuken/triton/context"
 	"go.bug.st/serial"
@@ -16,6 +18,10 @@ import (
 // dispatch は Run の読み取りループ内で同期的に呼ぶため、重い処理は自前の
 // goroutine に逃がすこと（さもないと後続フレームの読み取りが滞る）。
 type Handler func(*Com, Packet)
+
+// readRetryBackoff 「0バイト read → PortClosed」を無視して継続する際の
+// ホットループ防止用の待ち時間。
+const readRetryBackoff = 200 * time.Millisecond
 
 // Com go.bug.st/serial を使った USB シリアル通信のクライアント。
 //
@@ -31,6 +37,11 @@ type Com struct {
 	handlers map[byte]Handler
 
 	writeMu sync.Mutex
+
+	// closing Disconnect による意図的なクローズかどうかを表す。
+	// 「自分で閉じた PortClosed」と「read の 0バイトをライブラリが
+	// PortClosed に変換したもの」を区別するために使う。
+	closing atomic.Bool
 
 	ctx context.Context
 }
@@ -80,6 +91,7 @@ func (c *Com) Connect(portName string, mode *serial.Mode) error {
 
 	c.portName = portName
 	c.port = port
+	c.closing.Store(false)
 
 	return nil
 }
@@ -91,6 +103,8 @@ func (c *Com) Disconnect() error {
 	if c.port == nil {
 		return nil
 	}
+
+	c.closing.Store(true)
 
 	err := c.port.Close()
 	c.port = nil
@@ -118,18 +132,28 @@ func (c *Com) Run() error {
 	}
 
 	log := myctx.MustLogger(c.ctx)
-	// r := c.port
+	port := c.port // Disconnect で c.port が nil になっても参照を保持する
 
 	for {
 
-		typ, p, err := readPacket(c.port)
+		typ, p, err := readPacket(port)
 		if err != nil {
 
-			// Disconnect/Close によるポートクローズは正常終了とみなす。
 			var portErr *serial.PortError
 			if errors.As(err, &portErr) && portErr.Code() == serial.PortClosed {
-				log.Infow("reader stopped (port closed)", "portName", c.portName)
-				return nil
+
+				// 自分で Disconnect した場合のみ正常終了。
+				if c.closing.Load() {
+					log.Infow("reader stopped (port closed)", "portName", c.portName)
+					return nil
+				}
+
+				// Disconnect していないのにここに来たのは、ライブラリが read の
+				// 「0バイト・エラー無し」を PortClosed に変換したケース。
+				// 意図しないクローズなので閉じずに継続する（軽くバックオフ）。
+				log.Warnw("zero-length read reported as port-closed; keeping port open", "portName", c.portName)
+				time.Sleep(readRetryBackoff)
+				continue
 			}
 
 			// Close 時に EOF 系が返るケースも正常終了として扱う。
