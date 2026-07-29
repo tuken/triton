@@ -28,7 +28,7 @@ type UplinkNotify struct {
 	UnixTime        uint32 // Index 4-7: Little Endian
 	DeviceID        uint64 // Index 8-15: Little Endian
 	SensorID        uint16 // Index 16-17: Little Endian
-	Rssi            byte   // Index 18: RSSI値（-128..127）
+	Rssi            int8   // Index 18: RSSI値（-128..127）
 	SequenceNo      uint16 // Index 19-20: Little Endian
 	// Data            []byte // Index 21-: 可変長データ（DataLength バイト）
 	SensorData SensorData
@@ -46,7 +46,7 @@ func (p *UplinkNotify) PacketUnmarshal(buf []byte) error {
 	p.UnixTime = binary.LittleEndian.Uint32(buf[4:8])
 	p.DeviceID = binary.LittleEndian.Uint64(buf[8:16])
 	p.SensorID = binary.LittleEndian.Uint16(buf[16:18])
-	p.Rssi = buf[18]
+	p.Rssi = int8(buf[18])
 	p.SequenceNo = binary.LittleEndian.Uint16(buf[19:21])
 
 	if len(buf) >= 21+int(p.DataLength) {
@@ -84,14 +84,14 @@ func (p *UplinkNotify) VariableSize(fixed []byte) int {
 func (p *UplinkNotify) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 
 	enc.AddString("name", "Uplink 通知")
-	enc.AddInt("protocolVersion", int(p.ProtocolVersion))
-	enc.AddInt("type", int(p.Type))
-	enc.AddInt("dataLength", int(p.DataLength))
+	enc.AddUint8("protocolVersion", p.ProtocolVersion)
+	enc.AddUint8("type", p.Type)
+	enc.AddUint16("dataLength", p.DataLength)
 	enc.AddTime("unixTime", time.Unix(int64(p.UnixTime), 0).UTC())
 	enc.AddString("deviceID", fmt.Sprintf("0x%016X", p.DeviceID))
 	enc.AddString("sensorID", fmt.Sprintf("0x%04X", p.SensorID))
-	enc.AddInt("rssi", int(p.Rssi))
-	enc.AddInt("sequenceNo", int(p.SequenceNo))
+	enc.AddInt8("rssi", p.Rssi)
+	enc.AddUint16("sequenceNo", p.SequenceNo)
 
 	if p.SensorData != nil {
 		enc.AddObject("sensorData", p.SensorData)

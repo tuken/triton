@@ -96,10 +96,10 @@ func (h *Hygrothermo) PacketUnmarshal(senID, seqNo uint16, buf []byte) error {
 
 func (h *Hygrothermo) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 
-	enc.AddInt("batteryLevel", int(h.BatteryLevel))
-	enc.AddInt("sampling", int(h.Sampling))
+	enc.AddUint8("batteryLevel", h.BatteryLevel)
+	enc.AddUint8("sampling", h.Sampling)
 	enc.AddUint32("time", h.Time)
-	enc.AddInt("sampleNum", int(h.sampleNum))
+	enc.AddUint16("sampleNum", h.sampleNum)
 
 	for i, m := range h.MeasureData {
 

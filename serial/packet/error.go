@@ -87,8 +87,8 @@ func (p *ErrorNotify) VariableSize(fixed []byte) int {
 func (p *ErrorNotify) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 
 	enc.AddString("name", "Error 通知")
-	enc.AddInt("protocolVersion", int(p.ProtocolVersion))
-	enc.AddInt("type", int(p.Type))
+	enc.AddUint8("protocolVersion", p.ProtocolVersion)
+	enc.AddUint8("type", p.Type)
 	enc.AddTime("unixTime", time.Unix(int64(p.UnixTime), 0).UTC())
 	enc.AddString("reason", p.Reason.String())
 

@@ -129,12 +129,12 @@ func (p *DownlinkResponse) VariableSize(fixed []byte) int {
 func (p *DownlinkResponse) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 
 	enc.AddString("name", "Downlink レスポンス")
-	enc.AddInt("protocolVersion", int(p.ProtocolVersion))
-	enc.AddInt("type", int(p.Type))
+	enc.AddUint8("protocolVersion", p.ProtocolVersion)
+	enc.AddUint8("type", p.Type)
 	enc.AddTime("unixTime", time.Unix(int64(p.UnixTime), 0).UTC())
 	enc.AddString("deviceID", fmt.Sprintf("0x%016X", p.DeviceID))
 	enc.AddString("sensorID", fmt.Sprintf("0x%04X", p.SensorID))
-	enc.AddInt("sequenceNo", int(p.SequenceNo))
+	enc.AddUint16("sequenceNo", p.SequenceNo)
 	enc.AddString("command", p.Command.String())
 	enc.AddString("result", p.Result.String())
 
