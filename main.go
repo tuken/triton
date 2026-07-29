@@ -126,6 +126,11 @@ func main() {
 				log.Infow("KeepAlive!!!")
 
 				com.Write(packet.NewKeepAliveRequest())
+
+			case syscall.SIGUSR2:
+				log.Infow("FWバージョン取得!!!")
+
+				com.Write(packet.NewGetVersionRequest())
 			}
 		}
 	}()
