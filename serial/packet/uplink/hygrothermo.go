@@ -21,7 +21,7 @@ type Hygrothermo struct {
 	MeasureData  []measureData // 温湿度データ
 }
 
-func (h *Hygrothermo) Unmarshal(senID, seqNo uint16, buf []byte) error {
+func (h *Hygrothermo) PacketUnmarshal(senID, seqNo uint16, buf []byte) error {
 
 	if len(buf) < 16 {
 		return fmt.Errorf("too short: %d bytes", len(buf))
@@ -63,7 +63,7 @@ func (h *Hygrothermo) Unmarshal(senID, seqNo uint16, buf []byte) error {
 			})
 		}
 
-		h.Unmarshal(senID, seqNo, buf[offset:])
+		h.PacketUnmarshal(senID, seqNo, buf[offset:])
 
 	default:
 
@@ -88,7 +88,7 @@ func (h *Hygrothermo) Unmarshal(senID, seqNo uint16, buf []byte) error {
 			})
 		}
 
-		h.Unmarshal(senID, seqNo, buf[offset:])
+		h.PacketUnmarshal(senID, seqNo, buf[offset:])
 	}
 
 	return nil

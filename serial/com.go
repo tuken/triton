@@ -17,7 +17,7 @@ import (
 // Handler 受信フレームを処理する関数。登録した型のフレームが届くと呼ばれる。
 // dispatch は Run の読み取りループ内で同期的に呼ぶため、重い処理は自前の
 // goroutine に逃がすこと（さもないと後続フレームの読み取りが滞る）。
-type Handler func(*Com, Packet)
+type Handler func(*Com, Responder)
 
 // readRetryBackoff 「0バイト read → PortClosed」を無視して継続する際の
 // ホットループ防止用の待ち時間。
@@ -48,6 +48,7 @@ type Com struct {
 
 // NewCom 空の Com を生成する。
 func NewCom(ctx context.Context) *Com {
+
 	return &Com{
 		handlers: make(map[byte]Handler),
 		ctx:      ctx,
@@ -173,7 +174,7 @@ func (c *Com) Run() error {
 }
 
 // dispatch typ に対応するハンドラを呼ぶ。未登録なら何もしない。
-func (c *Com) dispatch(log *zap.SugaredLogger, typ byte, p Packet) {
+func (c *Com) dispatch(log *zap.SugaredLogger, typ byte, p Responder) {
 
 	c.mu.RLock()
 	h := c.handlers[typ]
@@ -188,7 +189,7 @@ func (c *Com) dispatch(log *zap.SugaredLogger, typ byte, p Packet) {
 }
 
 // Write 1つのリクエストフレームを送信する。送信は writeMu で直列化する。
-func (c *Com) Write(m Marshaler) error {
+func (c *Com) Write(m Requestable) error {
 
 	if c.port == nil {
 		return errors.New("serial: not connected")
@@ -197,7 +198,10 @@ func (c *Com) Write(m Marshaler) error {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 
-	return writeAll(c.port, m.Marshal())
+	log := myctx.MustLogger(c.ctx)
+	log.Debugw("パケット送信", "packet", m)
+
+	return writeAll(c.port, m.PacketMarshal())
 }
 
 func writeAll(p serial.Port, b []byte) error {

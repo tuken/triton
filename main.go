@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -162,7 +161,7 @@ func main() {
 	}
 }
 
-func handleUplinkNotify(c *serial.Com, p serial.Packet) {
+func handleUplinkNotify(c *serial.Com, p serial.Responder) {
 
 	log := myctx.MustLogger(c.Context())
 
@@ -172,23 +171,23 @@ func handleUplinkNotify(c *serial.Com, p serial.Packet) {
 		return
 	}
 
-	log.Infow("UplinkNotify 受信", "data length", notify.DataLength, "unix time", time.Unix(int64(notify.UnixTime), 0).UTC(), "device id", fmt.Sprintf("%016x", notify.DeviceID), "sensor id", fmt.Sprintf("%04x", notify.SensorID), "rssi", notify.Rssi, "sequence no", fmt.Sprintf("%04x", notify.SequenceNo))
+	log.Infow("UplinkNotify 受信", "data", notify)
 }
 
-func handleDownlinkResponse(c *serial.Com, p serial.Packet) {
+func handleDownlinkResponse(c *serial.Com, p serial.Responder) {
 
 	log := myctx.MustLogger(c.Context())
 
-	resp, ok := p.(*serial.DownlinkResponse)
+	resp, ok := p.(*packet.DownlinkResponse)
 	if !ok {
 		log.Errorw("Invalid frame type")
 		return
 	}
 
-	log.Infow("DownlinkResponse 受信", "result", resp.Result)
+	log.Infow("DownlinkResponse 受信", "result", resp)
 }
 
-func handleJIGInfoResponse(c *serial.Com, p serial.Packet) {
+func handleJIGInfoResponse(c *serial.Com, p serial.Responder) {
 
 	log := myctx.MustLogger(c.Context())
 
@@ -198,14 +197,14 @@ func handleJIGInfoResponse(c *serial.Com, p serial.Packet) {
 		return
 	}
 
-	log.Infow("JIG Infoレスポンス", "packet", resp)
+	log.Infow("JIGInfoResponse 受信", "result", resp)
 }
 
-func handleDFUResponse(c *serial.Com, p serial.Packet) {
+func handleDFUResponse(c *serial.Com, p serial.Responder) {
 
 	log := myctx.MustLogger(c.Context())
 
-	resp, ok := p.(*serial.DFUResponse)
+	resp, ok := p.(*packet.DFUResponse)
 	if !ok {
 		log.Errorw("Invalid frame type")
 		return
@@ -214,7 +213,7 @@ func handleDFUResponse(c *serial.Com, p serial.Packet) {
 	log.Infow("DFUResponse 受信", "result", resp.Result)
 }
 
-func handleErrorNotify(c *serial.Com, p serial.Packet) {
+func handleErrorNotify(c *serial.Com, p serial.Responder) {
 
 	log := myctx.MustLogger(c.Context())
 
@@ -224,7 +223,7 @@ func handleErrorNotify(c *serial.Com, p serial.Packet) {
 		return
 	}
 
-	log.Infow("エラー通知", "packet", err)
+	log.Infow("エラー通知", "data", err)
 
 	// if errNotify.Reason == serial.ReasonKeepAliveRequired {
 

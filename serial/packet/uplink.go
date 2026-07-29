@@ -16,8 +16,8 @@ const (
 type SensorData interface {
 	zapcore.ObjectMarshaler
 
-	// Unmarshal フレーム全体（固定部＋可変部）をパースする。
-	Unmarshal(senID, seqNo uint16, buf []byte) error
+	// PacketUnmarshal フレーム全体（固定部＋可変部）をパースする。
+	PacketUnmarshal(senID, seqNo uint16, buf []byte) error
 }
 
 // UplinkNotify アップリンク通知パケット（可変長、DataLengthで指定される）
@@ -34,7 +34,7 @@ type UplinkNotify struct {
 	SensorData SensorData
 }
 
-func (p *UplinkNotify) Unmarshal(buf []byte) error {
+func (p *UplinkNotify) PacketUnmarshal(buf []byte) error {
 
 	if len(buf) < 21 {
 		return fmt.Errorf("too short: %d bytes", len(buf))
@@ -57,7 +57,7 @@ func (p *UplinkNotify) Unmarshal(buf []byte) error {
 		case HygrothermoSensorID:
 			p.SensorData = &uplink.Hygrothermo{}
 
-			if err := p.SensorData.Unmarshal(p.SensorID, p.SequenceNo, buf[21:21+int(p.DataLength)]); err != nil {
+			if err := p.SensorData.PacketUnmarshal(p.SensorID, p.SequenceNo, buf[21:21+int(p.DataLength)]); err != nil {
 				return err
 			}
 		}

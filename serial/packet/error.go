@@ -21,39 +21,37 @@ const (
 	ReasonFailureCommand     ErrorReason = 0x0B
 )
 
-func (r ErrorReason) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+func (r ErrorReason) String() string {
 
 	switch r {
 
 	case ReasonInvalidRequest:
-		enc.AddString("reason", "不正なリクエスト")
+		return "不正なリクエスト"
 
 	case ReasonDownlinking:
-		enc.AddString("reason", "ダウンリンク処理中")
+		return "ダウンリンク処理中"
 
 	case ReasonNotFoundDevice:
-		enc.AddString("reason", "デバイス未登録")
+		return "デバイスID未登録"
 
 	case ReasonKeepAliveRequired:
-		enc.AddString("reason", "KeepAlive 必須")
+		return "KeepAlive要求"
 
 	case ReasonNotAdvertingDevice:
-		enc.AddString("reason", "アドバタイズ中でない")
+		return "アドバタイズ中でない"
 
 	case ReasonBusy:
-		enc.AddString("reason", "ビジー")
+		return "Busy"
 
 	case ReasonTimeout:
-		enc.AddString("reason", "タイムアウト")
+		return "タイムアウト"
 
 	case ReasonFailureCommand:
-		enc.AddString("reason", "コマンド失敗")
+		return "コマンド失敗"
 
 	default:
-		enc.AddString("reason", "不明なエラー")
+		return fmt.Sprintf("Unknown(0x%02X)", byte(r))
 	}
-
-	return nil
 }
 
 // ErrorNotify エラー通知パケット（7バイト固定）
@@ -64,7 +62,7 @@ type ErrorNotify struct {
 	Reason          ErrorReason // Index 6
 }
 
-func (p *ErrorNotify) Unmarshal(buf []byte) error {
+func (p *ErrorNotify) PacketUnmarshal(buf []byte) error {
 
 	if len(buf) < 7 {
 		return fmt.Errorf("too short: %d bytes", len(buf))
@@ -92,7 +90,7 @@ func (p *ErrorNotify) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 	enc.AddInt("protocolVersion", int(p.ProtocolVersion))
 	enc.AddInt("type", int(p.Type))
 	enc.AddTime("unixTime", time.Unix(int64(p.UnixTime), 0))
-	enc.AddObject("reason", p.Reason)
+	enc.AddString("reason", p.Reason.String())
 
 	return nil
 }

@@ -156,7 +156,7 @@ func NewKeepAliveRequest() *JIGInfoRequest {
 	}
 }
 
-func (p *JIGInfoRequest) Marshal() []byte {
+func (p *JIGInfoRequest) PacketMarshal() []byte {
 
 	buf := make([]byte, 11)
 
@@ -169,6 +169,18 @@ func (p *JIGInfoRequest) Marshal() []byte {
 	return buf
 }
 
+func (p *JIGInfoRequest) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+
+	enc.AddString("name", "JIG Info リクエスト")
+	enc.AddInt("protocolVersion", int(p.ProtocolVersion))
+	enc.AddInt("type", int(p.Type))
+	enc.AddString("command", p.Command.String())
+	enc.AddTime("localTime", time.Unix(int64(p.LocalTime), 0))
+	enc.AddTime("unixTime", time.Unix(int64(p.UnixTime), 0))
+
+	return nil
+}
+
 // JIGInfoResponse Infoレスポンスパケット（可変長、Commandにより長さが決まる）
 type JIGInfoResponse struct {
 	ProtocolVersion byte           // Index 0: 0x01
@@ -179,7 +191,7 @@ type JIGInfoResponse struct {
 	Data            []byte         // Index 15-: 可変長データ（Commandで長さが決まる）
 }
 
-func (p *JIGInfoResponse) Unmarshal(buf []byte) error {
+func (p *JIGInfoResponse) PacketUnmarshal(buf []byte) error {
 
 	if len(buf) < 15 {
 		return fmt.Errorf("too short: %d bytes", len(buf))
