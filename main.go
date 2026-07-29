@@ -104,7 +104,7 @@ func main() {
 	log.Infow("USB挿入待機中")
 
 	susp := make(chan os.Signal, 1)
-	signal.Notify(susp, syscall.SIGTSTP, syscall.SIGCONT, syscall.SIGUSR1)
+	signal.Notify(susp, syscall.SIGTSTP, syscall.SIGCONT, syscall.SIGUSR1, syscall.SIGUSR2)
 
 	go func() {
 
