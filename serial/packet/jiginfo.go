@@ -249,13 +249,14 @@ func (p *JIGInfoResponse) VariableSize(fixed []byte) int {
 
 		if b >= byte(CommandGetDeviceListBase) && b <= byte(CommandGetDeviceListBase)+byte(DeviceListMax) {
 			return 9
-		}
+		} else {
 
-		if b >= byte(CommandRemoveDeviceListBase) && b <= byte(CommandRemoveDeviceListBase)+byte(DeviceListMax) {
+			// if b >= byte(CommandRemoveDeviceListBase) && b <= byte(CommandRemoveDeviceListBase)+byte(DeviceListMax) {
+			// 	return 1
+			// }
+
 			return 1
 		}
-
-		return 1
 	}
 }
 
@@ -289,15 +290,16 @@ func (p *JIGInfoResponse) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 
 		if _, ok := p.Command.GetDeviceListIndex(); ok {
 			enc.AddString("data", fmt.Sprintf("デバイスリスト %d:0x%08X", p.Data[0], binary.LittleEndian.Uint64(p.Data[1:9])))
-		}
+		} else {
 
-		if _, ok := p.Command.RemoveDeviceListIndex(); ok {
+			// if _, ok := p.Command.RemoveDeviceListIndex(); ok {
 
 			if p.Data[0] == 0x01 {
 				enc.AddString("data", "成功")
 			} else {
 				enc.AddString("data", "失敗")
 			}
+			// }
 		}
 	}
 
