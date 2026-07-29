@@ -87,7 +87,7 @@ func (p *UplinkNotify) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 	enc.AddInt("protocolVersion", int(p.ProtocolVersion))
 	enc.AddInt("type", int(p.Type))
 	enc.AddInt("dataLength", int(p.DataLength))
-	enc.AddTime("unixTime", time.Unix(int64(p.UnixTime), 0))
+	enc.AddTime("unixTime", time.Unix(int64(p.UnixTime), 0).UTC())
 	enc.AddString("deviceID", fmt.Sprintf("0x%016X", p.DeviceID))
 	enc.AddString("sensorID", fmt.Sprintf("0x%04X", p.SensorID))
 	enc.AddInt("rssi", int(p.Rssi))

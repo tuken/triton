@@ -176,7 +176,7 @@ func (p *JIGInfoRequest) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 	enc.AddInt("type", int(p.Type))
 	enc.AddString("command", p.Command.String())
 	enc.AddTime("localTime", time.Unix(int64(p.LocalTime), 0))
-	enc.AddTime("unixTime", time.Unix(int64(p.UnixTime), 0))
+	enc.AddTime("unixTime", time.Unix(int64(p.UnixTime), 0).UTC())
 
 	return nil
 }
@@ -251,7 +251,7 @@ func (p *JIGInfoResponse) VariableSize(fixed []byte) int {
 func (p *JIGInfoResponse) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 
 	enc.AddString("name", "JIG Info レスポンス")
-	enc.AddTime("unixTime", time.Unix(int64(p.UnixTime), 0))
+	enc.AddTime("unixTime", time.Unix(int64(p.UnixTime), 0).UTC())
 	enc.AddString("command", p.Command.String())
 	enc.AddString("routerDeviceID", fmt.Sprintf("0x%016X", p.RouterDeviceID))
 

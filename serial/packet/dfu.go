@@ -43,7 +43,7 @@ func (p *DFUResponse) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 	enc.AddString("name", "DFUレスポンス")
 	enc.AddInt("protocolVersion", int(p.ProtocolVersion))
 	enc.AddInt("type", int(p.Type))
-	enc.AddTime("unixTime", time.Unix(int64(p.UnixTime), 0))
+	enc.AddTime("unixTime", time.Unix(int64(p.UnixTime), 0).UTC())
 
 	if p.Result == 0 {
 		enc.AddString("result", "失敗")
