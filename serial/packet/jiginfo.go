@@ -156,6 +156,17 @@ func NewKeepAliveRequest() *JIGInfoRequest {
 	}
 }
 
+func NewGetVersionRequest() *JIGInfoRequest {
+
+	return &JIGInfoRequest{
+		ProtocolVersion: 0x01,
+		Type:            0x01,
+		Command:         CommandGetVersion,
+		LocalTime:       uint32(time.Now().Local().Unix()),
+		UnixTime:        uint32(time.Now().Unix()),
+	}
+}
+
 func (p *JIGInfoRequest) PacketMarshal() []byte {
 
 	buf := make([]byte, 11)
