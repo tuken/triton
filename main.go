@@ -108,29 +108,37 @@ func main() {
 
 	go func() {
 
+		sendIfConnected := func(name string, req serial.Requestable) {
+
+			if com == nil {
+				log.Warnw("シリアル未接続のため送信をスキップ", "signal", name)
+				return
+			}
+
+			if err := com.Write(req); err != nil {
+				log.Warnw("シグナル送信コマンド失敗", "signal", name, "error", err)
+			}
+		}
+
 		for sig := range susp {
 
 			switch sig {
 
 			case syscall.SIGTSTP:
 				log.Infow("一時停止!!!")
-
-				com.Write(packet.NewStopRequest())
+				sendIfConnected("SIGTSTP", packet.NewStopRequest())
 
 			case syscall.SIGCONT:
 				log.Infow("再開!!!")
-
-				com.Write(packet.NewStartRequest())
+				sendIfConnected("SIGCONT", packet.NewStartRequest())
 
 			case syscall.SIGUSR1:
 				log.Infow("KeepAlive!!!")
-
-				com.Write(packet.NewKeepAliveRequest())
+				sendIfConnected("SIGUSR1", packet.NewKeepAliveRequest())
 
 			case syscall.SIGUSR2:
 				log.Infow("FWバージョン取得!!!")
-
-				com.Write(packet.NewGetVersionRequest())
+				sendIfConnected("SIGUSR2", packet.NewGetVersionRequest())
 			}
 		}
 	}()
