@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -45,11 +46,16 @@ func main() {
 	// 現在の接続。未接続なら com == nil。runDone は Run goroutine の終了通知。
 	var com *serial.Com
 	var runDone chan struct{}
+	var comMu sync.RWMutex
 
 	// connect はポートを開き、Run を goroutine で開始する。
 	connect := func(portName string) {
 
-		if com != nil {
+		comMu.RLock()
+		connected := com != nil
+		comMu.RUnlock()
+
+		if connected {
 			return // 既に接続済み
 		}
 
@@ -68,12 +74,15 @@ func main() {
 
 		log.Infow("シリアル接続", "port", portName)
 
+		comMu.Lock()
 		com = c
 		runDone = make(chan struct{})
+		rd := runDone
+		comMu.Unlock()
 
 		// Run はブロックするので goroutine で回す。抜去/切断で終了する。
 		go func() {
-			defer close(runDone)
+			defer close(rd)
 
 			if err := c.Run(); err != nil && !errors.Is(err, context.Canceled) {
 				log.Errorw("Run 終了", "error", err)
@@ -84,20 +93,26 @@ func main() {
 	// disconnect はポートを閉じ、Run goroutine の終了を待つ。
 	disconnect := func() {
 
-		if com == nil {
+		comMu.Lock()
+		c := com
+		rd := runDone
+		com = nil
+		runDone = nil
+		comMu.Unlock()
+
+		if c == nil {
 			return
 		}
 
-		if err := com.Disconnect(); err != nil {
+		if err := c.Disconnect(); err != nil {
 			log.Warnw("切断エラー", "error", err)
 		}
 
-		<-runDone // Run goroutine が抜けるのを待ってから片付ける
+		if rd != nil {
+			<-rd // Run goroutine が抜けるのを待ってから片付ける
+		}
 
 		log.Infow("シリアル切断")
-
-		com = nil
-		runDone = nil
 	}
 
 	// 既接続・新規挿入はどちらも EventInserted で届くので、ここでは待つだけ。
@@ -109,13 +124,16 @@ func main() {
 	go func() {
 
 		sendIfConnected := func(name string, req serial.Requestable) {
+			comMu.RLock()
+			c := com
+			comMu.RUnlock()
 
-			if com == nil {
+			if c == nil {
 				log.Warnw("シリアル未接続のため送信をスキップ", "signal", name)
 				return
 			}
 
-			if err := com.Write(req); err != nil {
+			if err := c.Write(req); err != nil {
 				log.Warnw("シグナル送信コマンド失敗", "signal", name, "error", err)
 			}
 		}

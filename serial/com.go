@@ -26,6 +26,7 @@ type Handler func(*Com, Responder)
 type Com struct {
 	portName string
 	port     serial.Port
+	portMu   sync.RWMutex
 
 	mu       sync.RWMutex
 	handlers map[byte]Handler
@@ -79,8 +80,10 @@ func (c *Com) Connect(portName string, mode *serial.Mode) error {
 		return fmt.Errorf("set read timeout: %w", err)
 	}
 
+	c.portMu.Lock()
 	c.portName = portName
 	c.port = port
+	c.portMu.Unlock()
 
 	return nil
 }
@@ -89,15 +92,21 @@ func (c *Com) Connect(portName string, mode *serial.Mode) error {
 // Run は nil を返して終了する。
 func (c *Com) Disconnect() error {
 
+	c.portMu.Lock()
 	if c.port == nil {
+		c.portMu.Unlock()
 		return nil
 	}
 
-	err := c.port.Close()
+	port := c.port
+	portName := c.portName
 	c.port = nil
+	c.portMu.Unlock()
+
+	err := port.Close()
 
 	if err != nil {
-		return fmt.Errorf("close %s: %w", c.portName, err)
+		return fmt.Errorf("close %s: %w", portName, err)
 	}
 
 	return nil
@@ -114,7 +123,12 @@ func (c *Com) Disconnect() error {
 // アイドル中の Read は解除されない）。
 func (c *Com) Run() error {
 
-	if c.port == nil {
+	c.portMu.RLock()
+	port := c.port
+	portName := c.portName
+	c.portMu.RUnlock()
+
+	if port == nil {
 		return errors.New("serial: not connected")
 	}
 
@@ -122,25 +136,25 @@ func (c *Com) Run() error {
 
 	for {
 
-		typ, p, err := readPacket(c.port)
+		typ, p, err := readPacket(port)
 		if err != nil {
 
 			// Disconnect/Close によるポートクローズは正常終了とみなす。
 			var portErr *serial.PortError
 			if errors.As(err, &portErr) && portErr.Code() == serial.PortClosed {
-				log.Infow("reader stopped (port closed)", "portName", c.portName)
+				log.Infow("reader stopped (port closed)", "portName", portName)
 				return nil
 			}
 
 			// Close 時に EOF 系が返るケースも正常終了として扱う。
 			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-				log.Infow("reader stopped (eof)", "portName", c.portName)
+				log.Infow("reader stopped (eof)", "portName", portName)
 				return nil
 			}
 
 			// 未知の型やパース失敗などは、その場では致命的として終了する。
 			// （ストリームの同期がずれている可能性があるため）
-			log.Errorw("read frame error", "portName", c.portName, "error", err)
+			log.Errorw("read frame error", "portName", portName, "error", err)
 			return err
 		}
 
@@ -166,7 +180,11 @@ func (c *Com) dispatch(log *zap.SugaredLogger, typ byte, p Responder) {
 // Write 1つのリクエストフレームを送信する。送信は writeMu で直列化する。
 func (c *Com) Write(m Requestable) error {
 
-	if c.port == nil {
+	c.portMu.RLock()
+	port := c.port
+	c.portMu.RUnlock()
+
+	if port == nil {
 		return errors.New("serial: not connected")
 	}
 
@@ -176,7 +194,7 @@ func (c *Com) Write(m Requestable) error {
 	log := myctx.MustLogger(c.ctx)
 	log.Debugw("パケット送信", "packet", m)
 
-	return writeAll(c.port, m.PacketMarshal())
+	return writeAll(port, m.PacketMarshal())
 }
 
 func writeAll(p serial.Port, b []byte) error {
@@ -200,5 +218,13 @@ func writeAll(p serial.Port, b []byte) error {
 
 func (c *Com) Read(b []byte) (int, error) {
 
-	return c.port.Read(b)
+	c.portMu.RLock()
+	port := c.port
+	c.portMu.RUnlock()
+
+	if port == nil {
+		return 0, errors.New("serial: not connected")
+	}
+
+	return port.Read(b)
 }
