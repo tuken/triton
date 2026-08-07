@@ -118,6 +118,12 @@ func main() {
 	// 既接続・新規挿入はどちらも EventInserted で届くので、ここでは待つだけ。
 	log.Infow("USB挿入待機中")
 
+	// 接続失敗時、挿抜イベントが来なくても一定間隔で再試行する。
+	// （USB が挿さったまま一時的に open 失敗するケース向け）
+	var retryPort string
+	retryTicker := time.NewTicker(3 * time.Second)
+	defer retryTicker.Stop()
+
 	susp := make(chan os.Signal, 1)
 	signal.Notify(susp, syscall.SIGTSTP, syscall.SIGCONT, syscall.SIGUSR1, syscall.SIGUSR2)
 
@@ -171,6 +177,11 @@ func main() {
 			log.Infow("アプリケーション終了")
 			return
 
+		case <-retryTicker.C:
+			if retryPort != "" {
+				connect(retryPort)
+			}
+
 		case ev, ok := <-watch.Events():
 
 			if !ok {
@@ -182,10 +193,14 @@ func main() {
 
 			case usb.EventInserted:
 				log.Infow("USB挿入検知", "port", ev.PortName)
+				retryPort = ev.PortName
 				connect(ev.PortName)
 
 			case usb.EventRemoved:
 				log.Infow("USB抜去検知", "port", ev.PortName)
+				if retryPort == ev.PortName {
+					retryPort = ""
+				}
 				disconnect()
 			}
 		}
