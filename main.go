@@ -84,9 +84,24 @@ func main() {
 		go func() {
 			defer close(rd)
 
-			if err := c.Run(); err != nil && !errors.Is(err, context.Canceled) {
-				log.Errorw("Run 終了", "error", err)
+			err := c.Run()
+			if err != nil && !errors.Is(err, context.Canceled) {
+				log.Errorw("Run 異常終了", "error", err)
+
+				// 異常終了時、ポートが開いたままだと再接続に失敗し続ける可能性があるため、
+				// 明示的に切断してリカバリ可能な状態へ戻す。
+				if derr := c.Disconnect(); derr != nil {
+					log.Warnw("Run 異常終了後の切断エラー", "error", derr)
+				}
 			}
+
+			// この goroutine が現在のアクティブ接続なら、状態を未接続へ戻す。
+			comMu.Lock()
+			if com == c {
+				com = nil
+				runDone = nil
+			}
+			comMu.Unlock()
 		}()
 	}
 
