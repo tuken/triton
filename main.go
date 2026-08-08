@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -46,16 +45,23 @@ func main() {
 	// 現在の接続。未接続なら com == nil。runDone は Run goroutine の終了通知。
 	var com *serial.Com
 	var runDone chan struct{}
-	var comMu sync.RWMutex
+
+	type runResult struct {
+		com *serial.Com
+		err error
+	}
+	runResultCh := make(chan runResult, 4)
+
+	type signalCommand struct {
+		name string
+		req  serial.Requestable
+	}
+	cmdCh := make(chan signalCommand, 8)
 
 	// connect はポートを開き、Run を goroutine で開始する。
 	connect := func(portName string) {
 
-		comMu.RLock()
-		connected := com != nil
-		comMu.RUnlock()
-
-		if connected {
+		if com != nil {
 			return // 既に接続済み
 		}
 
@@ -74,46 +80,30 @@ func main() {
 
 		log.Infow("シリアル接続", "port", portName)
 
-		comMu.Lock()
 		com = c
 		runDone = make(chan struct{})
 		rd := runDone
-		comMu.Unlock()
 
 		// Run はブロックするので goroutine で回す。抜去/切断で終了する。
 		go func() {
 			defer close(rd)
 
 			err := c.Run()
-			if err != nil && !errors.Is(err, context.Canceled) {
-				log.Errorw("Run 異常終了", "error", err)
 
-				// 異常終了時、ポートが開いたままだと再接続に失敗し続ける可能性があるため、
-				// 明示的に切断してリカバリ可能な状態へ戻す。
-				if derr := c.Disconnect(); derr != nil {
-					log.Warnw("Run 異常終了後の切断エラー", "error", derr)
-				}
+			select {
+			case runResultCh <- runResult{com: c, err: err}:
+			case <-ctx.Done():
 			}
-
-			// この goroutine が現在のアクティブ接続なら、状態を未接続へ戻す。
-			comMu.Lock()
-			if com == c {
-				com = nil
-				runDone = nil
-			}
-			comMu.Unlock()
 		}()
 	}
 
 	// disconnect はポートを閉じ、Run goroutine の終了を待つ。
 	disconnect := func() {
 
-		comMu.Lock()
 		c := com
 		rd := runDone
 		com = nil
 		runDone = nil
-		comMu.Unlock()
 
 		if c == nil {
 			return
@@ -141,43 +131,41 @@ func main() {
 
 	susp := make(chan os.Signal, 1)
 	signal.Notify(susp, syscall.SIGTSTP, syscall.SIGCONT, syscall.SIGUSR1, syscall.SIGUSR2)
+	defer signal.Stop(susp)
 
 	go func() {
-
-		sendIfConnected := func(name string, req serial.Requestable) {
-			comMu.RLock()
-			c := com
-			comMu.RUnlock()
-
-			if c == nil {
-				log.Warnw("シリアル未接続のため送信をスキップ", "signal", name)
-				return
-			}
-
-			if err := c.Write(req); err != nil {
-				log.Warnw("シグナル送信コマンド失敗", "signal", name, "error", err)
-			}
-		}
 
 		for sig := range susp {
 
 			switch sig {
 
 			case syscall.SIGTSTP:
-				log.Infow("一時停止!!!")
-				sendIfConnected("SIGTSTP", packet.NewStopRequest())
+				select {
+				case cmdCh <- signalCommand{name: "SIGTSTP", req: packet.NewStopRequest()}:
+				case <-ctx.Done():
+					return
+				}
 
 			case syscall.SIGCONT:
-				log.Infow("再開!!!")
-				sendIfConnected("SIGCONT", packet.NewStartRequest())
+				select {
+				case cmdCh <- signalCommand{name: "SIGCONT", req: packet.NewStartRequest()}:
+				case <-ctx.Done():
+					return
+				}
 
 			case syscall.SIGUSR1:
-				log.Infow("KeepAlive!!!")
-				sendIfConnected("SIGUSR1", packet.NewKeepAliveRequest())
+				select {
+				case cmdCh <- signalCommand{name: "SIGUSR1", req: packet.NewKeepAliveRequest()}:
+				case <-ctx.Done():
+					return
+				}
 
 			case syscall.SIGUSR2:
-				log.Infow("FWバージョン取得!!!")
-				sendIfConnected("SIGUSR2", packet.NewGetVersionRequest())
+				select {
+				case cmdCh <- signalCommand{name: "SIGUSR2", req: packet.NewGetVersionRequest()}:
+				case <-ctx.Done():
+					return
+				}
 			}
 		}
 	}()
@@ -192,12 +180,31 @@ func main() {
 			log.Infow("アプリケーション終了")
 			return
 
-		case <-retryTicker.C:
-			comMu.RLock()
-			connected := com != nil
-			comMu.RUnlock()
+		case cmd := <-cmdCh:
+			log.Infow("シグナルコマンド受信", "signal", cmd.name)
 
-			if retryPort != "" && !connected {
+			if com == nil {
+				log.Warnw("シリアル未接続のため送信をスキップ", "signal", cmd.name)
+				continue
+			}
+
+			if err := com.Write(cmd.req); err != nil {
+				log.Warnw("シグナル送信コマンド失敗", "signal", cmd.name, "error", err)
+			}
+
+		case rr := <-runResultCh:
+			if rr.com != com {
+				continue // 既に切断済みの古い接続の終了通知
+			}
+
+			if rr.err != nil && !errors.Is(rr.err, context.Canceled) {
+				log.Errorw("Run 異常終了", "error", rr.err)
+			}
+
+			disconnect()
+
+		case <-retryTicker.C:
+			if retryPort != "" && com == nil {
 				connect(retryPort)
 			}
 
