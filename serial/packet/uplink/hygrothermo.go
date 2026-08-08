@@ -38,12 +38,16 @@ func (h *Hygrothermo) PacketUnmarshal(senID, seqNo uint16, buf []byte) error {
 
 		offset := 8
 
-		for ; offset < len(buf); offset += 8 {
+		for ; offset+8 <= len(buf); offset += 8 {
 
 			h.MeasureData = append(h.MeasureData, measureData{
 				Temperature: math.Float32frombits(binary.LittleEndian.Uint32(buf[offset : offset+4])),
 				Humidity:    math.Float32frombits(binary.LittleEndian.Uint32(buf[offset+4 : offset+8])),
 			})
+		}
+
+		if offset != len(buf) {
+			return fmt.Errorf("invalid measure payload length: %d", len(buf)-8)
 		}
 
 	case 0x0000:
@@ -54,8 +58,12 @@ func (h *Hygrothermo) PacketUnmarshal(senID, seqNo uint16, buf []byte) error {
 		h.sampleNum = binary.LittleEndian.Uint16(buf[6:8])
 
 		offset := 8
+		limit := 240
+		if len(buf) < limit {
+			limit = len(buf)
+		}
 
-		for ; offset < 240; offset += 8 {
+		for ; offset+8 <= limit; offset += 8 {
 
 			h.MeasureData = append(h.MeasureData, measureData{
 				Temperature: math.Float32frombits(binary.LittleEndian.Uint32(buf[offset : offset+4])),
@@ -63,7 +71,9 @@ func (h *Hygrothermo) PacketUnmarshal(senID, seqNo uint16, buf []byte) error {
 			})
 		}
 
-		h.PacketUnmarshal(senID, seqNo, buf[offset:])
+		if err := h.PacketUnmarshal(senID, seqNo, buf[offset:]); err != nil {
+			return err
+		}
 
 	default:
 
@@ -79,8 +89,12 @@ func (h *Hygrothermo) PacketUnmarshal(senID, seqNo uint16, buf []byte) error {
 		}
 
 		offset := 4
+		limit := 240
+		if len(buf) < limit {
+			limit = len(buf)
+		}
 
-		for ; offset < 240; offset += 8 {
+		for ; offset+8 <= limit; offset += 8 {
 
 			h.MeasureData = append(h.MeasureData, measureData{
 				Temperature: math.Float32frombits(binary.LittleEndian.Uint32(buf[offset : offset+4])),
@@ -88,7 +102,9 @@ func (h *Hygrothermo) PacketUnmarshal(senID, seqNo uint16, buf []byte) error {
 			})
 		}
 
-		h.PacketUnmarshal(senID, seqNo, buf[offset:])
+		if err := h.PacketUnmarshal(senID, seqNo, buf[offset:]); err != nil {
+			return err
+		}
 	}
 
 	return nil
