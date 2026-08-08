@@ -193,7 +193,11 @@ func main() {
 			return
 
 		case <-retryTicker.C:
-			if retryPort != "" {
+			comMu.RLock()
+			connected := com != nil
+			comMu.RUnlock()
+
+			if retryPort != "" && !connected {
 				connect(retryPort)
 			}
 
