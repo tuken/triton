@@ -3,6 +3,7 @@ module github.com/tuken/triton
 go 1.26.3
 
 require (
+	github.com/pilebones/go-udev v0.10.0
 	go.bug.st/serial v1.7.1
 	go.uber.org/zap v1.28.0
 )
