@@ -40,6 +40,18 @@ func main() {
 				return
 			}
 
+			// ACTION="add"
+			// BUSNUM="001"
+			// DEVNAME="bus/usb/001/005"
+			// DEVNUM="005"
+			// DEVPATH="/devices/pci0000:00/0000:00:14.0/usb1/1-1"
+			// DEVTYPE="usb_device"
+			// MAJOR="189"
+			// MINOR="4"
+			// PRODUCT="58f/6387/10b"
+			// SEQNUM="2511"
+			// SUBSYSTEM="usb"
+			// TYPE="0/0/0"}
 			// USBデバイス本体だけに絞る。
 			if event.Env["SUBSYSTEM"] != "usb" || event.Env["DEVTYPE"] != "usb_device" {
 				continue
@@ -48,10 +60,14 @@ func main() {
 			switch event.Action {
 
 			case "add":
-				log.Printf("USB挿入: path=%s product=%s", event.KObj, event.Env["PRODUCT"])
+				// log.Printf("USB挿入: path=%s product=%s", event.KObj, event.Env["PRODUCT"])
+				log.Printf("USB挿入: path=%s\n", event.KObj)
+				log.Printf("  Env: %s", event.Env)
 
 			case "remove":
-				log.Printf("USB抜去: path=%s product=%s", event.KObj, event.Env["PRODUCT"])
+				// log.Printf("USB抜去: path=%s product=%s", event.KObj, event.Env["PRODUCT"])
+				log.Printf("USB抜去: path=%s\n", event.KObj)
+				log.Printf("  Env: %s", event.Env)
 			}
 
 		case err := <-errs:
